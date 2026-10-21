@@ -5,7 +5,7 @@ import { Check, MessageCircle, Send, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/Avatar';
 import { ReactionRow } from '@/components/game/ReactionRow';
-import { QUICK_LINES_DRAWING, QUICK_LINES_IDLE } from '@/lib/game-config';
+import { QUICK_LINES_ARTIST, QUICK_LINES_DRAWING, QUICK_LINES_IDLE } from '@/lib/game-config';
 import { useGameStore } from '@/lib/store';
 import { getSocket } from '@/lib/socket';
 import { cn } from '@/lib/cn';
@@ -35,7 +35,12 @@ export function ChatPanel({
   const isArtist = state.you.isArtist;
   const hasGuessed = state.guessedIds.includes(state.you.id);
   const drawing = state.phase === 'drawing';
-  const quickLines = drawing && !isArtist && !hasGuessed ? QUICK_LINES_DRAWING : QUICK_LINES_IDLE;
+  const quickLines =
+    drawing && isArtist
+      ? QUICK_LINES_ARTIST
+      : drawing && !hasGuessed
+        ? QUICK_LINES_DRAWING
+        : QUICK_LINES_IDLE;
 
   let placeholder = 'Message the room…';
   if (!connected) placeholder = 'Reconnecting…';

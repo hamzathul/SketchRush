@@ -84,6 +84,8 @@ export function cosmeticEmoji(id: string | null | undefined): string {
 /** One-tap lines so quiet players still join the banter. */
 export const QUICK_LINES_DRAWING = ['too easy 😎', "that's a cat?!", 'hurry up ⏰', 'clueless 😅', 'nice try 🙃'];
 
+export const QUICK_LINES_ARTIST = ['watch this 👀', 'trust the process 🎨', '🔥🔥🔥', '😅'];
+
 export const QUICK_LINES_IDLE = ['gg 🎉', 'so close!', 'one more round?', '🔥🔥🔥'];
 
 export function clamp(value: number, min: number, max: number): number {

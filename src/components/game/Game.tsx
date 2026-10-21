@@ -61,7 +61,11 @@ export function Game() {
 
   const unread = chatOpen ? 0 : Math.max(0, chat.length - seenCount);
   const me = state.players.find((player) => player.id === state.you.id);
-  const onFire = Boolean(me && me.streak >= 3) && state.phase === 'drawing';
+  const onFire =
+    Boolean(me && me.streak >= 3) &&
+    state.phase === 'drawing' &&
+    !state.you.isArtist &&
+    !state.you.isSpectator;
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
