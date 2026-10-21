@@ -89,7 +89,7 @@ export function ChatPanel({
         ) : null}
       </div>
 
-      <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3" aria-live="polite">
+      <div ref={listRef} data-testid="chat-list" className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3" aria-live="polite">
         {chat.length === 0 ? (
           <p className="mt-6 text-center text-xs leading-relaxed text-muted">
             No messages yet.

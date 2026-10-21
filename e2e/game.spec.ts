@@ -91,6 +91,10 @@ test.describe('SketchRush game flow', () => {
         page.getByTestId('reaction-bubble').filter({ hasText: '🔥' }).first(),
       ).toBeVisible();
 
+      // One-tap banter is chatter only — never a guess, never a streak breaker.
+      await guest.getByTestId('quick-chat-row').getByRole('button', { name: 'gg 🎉' }).click();
+      await expect(page.getByTestId('chat-list').getByText('gg 🎉')).toBeVisible({ timeout: 10_000 });
+
       // Fast game for CI: one round, 30 seconds per turn.
       const selects = page.locator('select');
       await selects.nth(1).selectOption('1');
@@ -229,6 +233,13 @@ test.describe('SketchRush game flow', () => {
         }
 
         const guessInput = guesser.getByPlaceholder(/Type your guess/);
+        // A one-letter-off guess becomes the round-end "so close" callout.
+        const nearMiss = word.replace(/[^a-z0-9]/gi, '').length >= 4 ? `${word}x` : '';
+        if (nearMiss) {
+          await guessInput.fill(nearMiss);
+          await guessInput.press('Enter');
+        }
+
         const artistCountBefore = await artist.getByText(/guessed the word!/).count();
         const guesserCountBefore = await guesser.getByText(/guessed the word!/).count();
         await guessInput.fill(word);
@@ -244,6 +255,10 @@ test.describe('SketchRush game flow', () => {
         await expect(artist.getByText('Turn complete. The word was')).toBeVisible({ timeout: 20_000 });
         await expect(guesser.getByText('Turn complete. The word was')).toBeVisible({ timeout: 20_000 });
         await expect(artist.getByRole('heading', { name: word, exact: true })).toBeVisible();
+        if (nearMiss) {
+          await expect(artist.getByTestId('near-miss')).toContainText(nearMiss);
+          await expect(guesser.getByTestId('near-miss')).toContainText(nearMiss);
+        }
         if (turn === 0) {
           await artist.screenshot({ path: 'screenshots/round-end.png', fullPage: true });
         }
@@ -252,6 +267,7 @@ test.describe('SketchRush game flow', () => {
       await expect(page.getByText('Final scores')).toBeVisible({ timeout: 30_000 });
       await expect(guest.getByText('Final scores')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(/wins!/)).toBeVisible();
+      await expect(page.getByText(/Winner charms:/)).toBeVisible();
       await page.screenshot({ path: 'screenshots/game-end.png', fullPage: true });
 
       const hostRematch = page.getByRole('button', { name: /Rematch/ });

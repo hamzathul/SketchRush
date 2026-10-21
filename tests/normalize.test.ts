@@ -41,7 +41,7 @@ describe('nearMissDistance', () => {
   it('measures how far a wrong guess was', () => {
     expect(nearMissDistance('elepant', 'elephant')).toBe(1);
     expect(nearMissDistance('elephnat', 'elephant')).toBe(2);
-    expect(nearMissDistance('elephxnt', 'elephant')).toBe(2);
+    expect(nearMissDistance('elephxzt', 'elephant')).toBe(2);
   });
 
   it('ignores exact answers, short words and wild guesses', () => {

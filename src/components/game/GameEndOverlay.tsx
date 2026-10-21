@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
 import { motion } from 'motion/react';
@@ -21,6 +21,7 @@ export function GameEndOverlay() {
   const state = useGameStore((store) => store.state);
   const resetRoom = useGameStore((store) => store.resetRoom);
   const fired = useRef('');
+  const [wins, setWins] = useState(getWins);
 
   const results = state?.gameResults ?? null;
   const active = state?.phase === 'game_end' && Boolean(results?.length);
@@ -38,9 +39,10 @@ export function GameEndOverlay() {
 
     // Winning games unlocks avatar charms on this device; tell the room right away.
     if (results[0]?.playerId === state.you.id && !state.you.isSpectator) {
-      const wins = addWin();
-      const unlocked = cosmeticForWins(wins);
-      if (unlocked && unlocked !== cosmeticForWins(wins - 1)) {
+      const nextWins = addWin();
+      setWins(nextWins);
+      const unlocked = cosmeticForWins(nextWins);
+      if (unlocked && unlocked !== cosmeticForWins(nextWins - 1)) {
         toast.success(`New winner charm unlocked: ${cosmeticEmoji(unlocked)}`, {
           description: 'It now rides in the corner of your avatar.',
         });
@@ -91,7 +93,6 @@ export function GameEndOverlay() {
   const rest = results.slice(3);
   const isHost = state.hostId === state.you.id;
   const isPlayer = !state.you.isSpectator;
-  const wins = getWins();
   const nextCharm = COSMETICS.find((cosmetic) => wins < cosmetic.wins);
 
   /** Charms update live, so prefer the player list over the frozen game result. */
