@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { AVATAR_EMOJIS } from '@/lib/game-config';
+import { AVATAR_EMOJIS, cosmeticEmoji } from '@/lib/game-config';
 import { cn } from '@/lib/cn';
 
 const PALETTES: Array<[string, string, string]> = [
@@ -56,9 +56,21 @@ interface AvatarProps {
   size?: number;
   className?: string;
   style?: CSSProperties;
+  /** Winner charm emoji, unlocked by winning games. */
+  cosmetic?: string | null;
+  /** Pulsing flame ring for a hot guessing streak. */
+  hot?: boolean;
 }
 
-export function Avatar({ seed, name = '', size = 40, className = '', style }: AvatarProps) {
+export function Avatar({
+  seed,
+  name = '',
+  size = 40,
+  className = '',
+  style,
+  cosmetic = null,
+  hot = false,
+}: AvatarProps) {
   const source = seed || name || 'sketchrush';
   const hash = hashSeed(source);
   const [from, to, shade] = PALETTES[hash % PALETTES.length];
@@ -66,11 +78,14 @@ export function Avatar({ seed, name = '', size = 40, className = '', style }: Av
   const initial = (name.trim()[0] ?? '?').toUpperCase();
   const badge = Math.max(13, Math.round(size * 0.44));
   const ring = Math.max(1, Math.round(size * 0.04));
+  const charm = cosmeticEmoji(cosmetic);
+  const charmBox = Math.max(15, Math.round(size * 0.42));
 
   return (
     <span
       className={cn(
         'relative inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-xl',
+        hot && 'hot-avatar',
         className,
       )}
       style={{
@@ -87,12 +102,29 @@ export function Avatar({ seed, name = '', size = 40, className = '', style }: Av
         className="leading-none"
         style={{
           fontSize: Math.round(size * 0.54),
-          transform: `translate(${-size * 0.06}px, ${-size * 0.08}px)`,
+          transform: charm
+            ? `translate(${size * 0.07}px, ${-size * 0.02}px)`
+            : `translate(${-size * 0.06}px, ${-size * 0.08}px)`,
           filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.35))',
         }}
       >
         {emoji}
       </span>
+      {charm ? (
+        <span
+          aria-hidden="true"
+          className="absolute left-0 top-0 flex items-center justify-center rounded-br-lg rounded-tl-xl"
+          style={{
+            width: charmBox,
+            height: charmBox,
+            fontSize: Math.round(charmBox * 0.66),
+            lineHeight: 1,
+            background: 'rgba(9, 12, 20, 0.84)',
+          }}
+        >
+          {charm}
+        </span>
+      ) : null}
       <span
         aria-hidden="true"
         className="absolute bottom-0 right-0 flex items-center justify-center rounded-full font-bold leading-none text-white"

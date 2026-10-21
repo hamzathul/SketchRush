@@ -24,7 +24,14 @@ export function PlayerRail({ variant = 'desktop', className }: { variant?: 'desk
               !player.connected && 'opacity-50',
             )}
           >
-            <Avatar seed={player.avatarSeed} name={player.nickname} size={24} className="rounded-lg" />
+            <Avatar
+              seed={player.avatarSeed}
+              name={player.nickname}
+              size={24}
+              className="rounded-lg"
+              cosmetic={player.cosmetic}
+              hot={player.streak >= 2}
+            />
             <span className="max-w-[72px] truncate text-[11px] font-medium">{player.nickname}</span>
             <span className="font-display text-[11px] font-bold text-lime">{player.score}</span>
             {player.id === state.artistId ? <Pencil size={10} className="text-accent-2" /> : null}
@@ -63,7 +70,14 @@ export function PlayerRail({ variant = 'desktop', className }: { variant?: 'desk
             >
               <span className="w-3.5 shrink-0 text-center font-display text-[11px] font-bold text-muted">{index + 1}</span>
               <div className="relative shrink-0">
-                <Avatar seed={player.avatarSeed} name={player.nickname} size={34} className="rounded-lg" />
+                <Avatar
+                  seed={player.avatarSeed}
+                  name={player.nickname}
+                  size={34}
+                  className="rounded-lg"
+                  cosmetic={player.cosmetic}
+                  hot={player.streak >= 2}
+                />
                 {isArtist ? (
                   <span className="absolute -bottom-1 -right-1 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-accent text-white shadow ring-2 ring-night">
                     <Pencil size={10} strokeWidth={2.5} />

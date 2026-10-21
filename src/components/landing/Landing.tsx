@@ -23,7 +23,8 @@ import { AvatarPicker } from '@/components/AvatarPicker';
 import { BrandMark, Wordmark } from '@/components/BrandMark';
 import { HowToPlayDialog } from '@/components/HowToPlayDialog';
 import { getSocket } from '@/lib/socket';
-import { getAvatarSeed, getNickname, saveAvatarSeed, saveNickname, saveSession } from '@/lib/session';
+import { getAvatarSeed, getNickname, getWins, saveAvatarSeed, saveNickname, saveSession } from '@/lib/session';
+import { cosmeticForWins } from '@/lib/game-config';
 import { useGameStore } from '@/lib/store';
 import { sfx } from '@/lib/sound';
 import type { Ack } from '@/lib/types';
@@ -176,7 +177,11 @@ export function Landing() {
       }
 
       const result = await new Promise<Ack<RoomCreatedData>>((resolve) => {
-        getSocket().emit('room:create', { nickname: name, avatarSeed }, resolve);
+        getSocket().emit(
+          'room:create',
+          { nickname: name, avatarSeed, cosmetic: cosmeticForWins(getWins()) ?? undefined },
+          resolve,
+        );
       });
 
       if (!result.ok || !result.data) {

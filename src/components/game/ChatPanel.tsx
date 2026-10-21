@@ -5,6 +5,7 @@ import { Check, MessageCircle, Send, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/Avatar';
 import { ReactionRow } from '@/components/game/ReactionRow';
+import { QUICK_LINES_DRAWING, QUICK_LINES_IDLE } from '@/lib/game-config';
 import { useGameStore } from '@/lib/store';
 import { getSocket } from '@/lib/socket';
 import { cn } from '@/lib/cn';
@@ -34,6 +35,7 @@ export function ChatPanel({
   const isArtist = state.you.isArtist;
   const hasGuessed = state.guessedIds.includes(state.you.id);
   const drawing = state.phase === 'drawing';
+  const quickLines = drawing && !isArtist && !hasGuessed ? QUICK_LINES_DRAWING : QUICK_LINES_IDLE;
 
   let placeholder = 'Message the room…';
   if (!connected) placeholder = 'Reconnecting…';
@@ -52,6 +54,15 @@ export function ChatPanel({
     }
     getSocket().emit('chat:send', { text });
     setValue('');
+  };
+
+  /** One-tap banter: these never count as guesses. */
+  const sendQuick = (line: string) => {
+    if (!connected) {
+      toast.error('Still reconnecting — try again in a second.');
+      return;
+    }
+    getSocket().emit('chat:send', { text: line, quick: true });
   };
 
   return (
@@ -114,7 +125,13 @@ export function ChatPanel({
           return (
             <div key={message.id} className={cn('flex items-end gap-2', isMine && 'flex-row-reverse')}>
               {player ? (
-                <Avatar seed={player.avatarSeed} name={player.nickname} size={24} className="mb-0.5 shrink-0 rounded-md" />
+                <Avatar
+                  seed={player.avatarSeed}
+                  name={player.nickname}
+                  size={24}
+                  className="mb-0.5 shrink-0 rounded-md"
+                  cosmetic={player.cosmetic}
+                />
               ) : (
                 <div className="mb-0.5 h-6 w-6 shrink-0 rounded-md bg-white/10" />
               )}
@@ -140,6 +157,22 @@ export function ChatPanel({
       </div>
 
       <div className="shrink-0 border-t border-white/6 px-2.5 py-2">
+        <div
+          data-testid="quick-chat-row"
+          className="fade-x no-scrollbar mb-1.5 flex flex-nowrap items-center gap-1 overflow-x-auto"
+        >
+          {quickLines.map((line) => (
+            <button
+              key={line}
+              type="button"
+              className="shrink-0 rounded-full border border-white/8 bg-white/4 px-2 py-1 text-[11px] text-muted transition hover:bg-white/10 hover:text-ink disabled:opacity-50"
+              onClick={() => sendQuick(line)}
+              disabled={!connected}
+            >
+              {line}
+            </button>
+          ))}
+        </div>
         <ReactionRow className="mb-1.5" />
         <form onSubmit={send} className="flex items-center gap-1.5">
           <input

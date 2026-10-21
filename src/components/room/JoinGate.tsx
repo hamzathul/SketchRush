@@ -7,7 +7,8 @@ import { ArrowRight, Dices, Loader2, Lock, Users } from 'lucide-react';
 import { randomAvatarSeed } from '@/components/Avatar';
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { getSocket } from '@/lib/socket';
-import { getAvatarSeed, getNickname, saveAvatarSeed, saveNickname, saveSession } from '@/lib/session';
+import { getAvatarSeed, getNickname, getWins, saveAvatarSeed, saveNickname, saveSession } from '@/lib/session';
+import { cosmeticForWins } from '@/lib/game-config';
 import type { Ack } from '@/lib/types';
 import type { RoomCreatedData } from '@/lib/socket-events';
 import { sfx } from '@/lib/sound';
@@ -45,7 +46,10 @@ export function JoinGate({ code, onJoined }: JoinGateProps) {
     saveAvatarSeed(avatarSeed);
     sfx.click();
 
-    getSocket().emit('room:join', { code, nickname: name, avatarSeed }, (result: Ack<RoomCreatedData>) => {
+    getSocket().emit(
+      'room:join',
+      { code, nickname: name, avatarSeed, cosmetic: cosmeticForWins(getWins()) ?? undefined },
+      (result: Ack<RoomCreatedData>) => {
       setBusy(false);
       if (!result.ok || !result.data) {
         setError(result.ok ? 'Could not join the room.' : result.error);

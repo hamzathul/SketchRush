@@ -16,7 +16,15 @@ export function WordBanner() {
     return (
       <div className="flex shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/7 bg-surface/70 px-3 py-2 sm:px-4">
         <div className="flex min-w-0 items-center gap-2.5">
-          {artist ? <Avatar seed={artist.avatarSeed} name={artist.nickname} size={30} className="rounded-lg" /> : null}
+          {artist ? (
+            <Avatar
+              seed={artist.avatarSeed}
+              name={artist.nickname}
+              size={30}
+              className="rounded-lg"
+              cosmetic={artist.cosmetic}
+            />
+          ) : null}
           <p className="truncate text-sm">
             <span className="font-semibold">{artist?.nickname ?? 'Someone'}</span>{' '}
             <span className="text-muted">is choosing a word…</span>
@@ -33,7 +41,15 @@ export function WordBanner() {
     return (
       <div className="flex shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/7 bg-surface/70 px-3 py-2 sm:px-4">
         <div className="flex min-w-0 items-center gap-2.5">
-          {artist ? <Avatar seed={artist.avatarSeed} name={artist.nickname} size={30} className="rounded-lg" /> : null}
+          {artist ? (
+            <Avatar
+              seed={artist.avatarSeed}
+              name={artist.nickname}
+              size={30}
+              className="rounded-lg"
+              cosmetic={artist.cosmetic}
+            />
+          ) : null}
           <div className="min-w-0">
             <p className="truncate text-xs text-muted">
               {isArtist ? 'You are drawing' : `${artist?.nickname ?? 'Someone'} is drawing`}

@@ -5,7 +5,8 @@ import { Shuffle } from 'lucide-react';
 
 import { Avatar, randomAvatarSeed } from '@/components/Avatar';
 import { Modal } from '@/components/Modal';
-import { AVATAR_EMOJIS } from '@/lib/game-config';
+import { AVATAR_EMOJIS, COSMETICS, cosmeticForWins } from '@/lib/game-config';
+import { getWins } from '@/lib/session';
 import { cn } from '@/lib/cn';
 import { sfx } from '@/lib/sound';
 
@@ -22,6 +23,7 @@ function isSelected(seed: string, option: string): boolean {
 
 export function AvatarPicker({ seed, name = '', onChange, size = 46 }: AvatarPickerProps) {
   const [open, setOpen] = useState(false);
+  const wins = getWins();
 
   return (
     <>
@@ -35,7 +37,7 @@ export function AvatarPicker({ seed, name = '', onChange, size = 46 }: AvatarPic
         title="Change avatar"
         aria-label="Change avatar"
       >
-        <Avatar seed={seed} name={name} size={size} className="rounded-xl" />
+        <Avatar seed={seed} name={name} size={size} className="rounded-xl" cosmetic={cosmeticForWins(wins)} />
       </button>
 
       <Modal
@@ -65,6 +67,33 @@ export function AvatarPicker({ seed, name = '', onChange, size = 46 }: AvatarPic
               <Avatar seed={option} name={name} size={46} className="rounded-lg" />
             </button>
           ))}
+        </div>
+
+        <div className="mt-4 rounded-xl border border-white/7 bg-white/3 px-3 py-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+              Winner charms
+            </span>
+            {COSMETICS.map((cosmetic) => {
+              const unlocked = wins >= cosmetic.wins;
+              return (
+                <span
+                  key={cosmetic.id}
+                  className={cn(
+                    'flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]',
+                    unlocked
+                      ? 'border-lime/30 bg-lime/10 text-ink'
+                      : 'border-white/8 bg-white/3 text-muted/70',
+                  )}
+                  title={unlocked ? cosmetic.label : `Win ${cosmetic.wins} games to unlock`}
+                >
+                  <span aria-hidden="true">{unlocked ? cosmetic.emoji : '🔒'}</span>
+                  {unlocked ? cosmetic.label : `Win ${cosmetic.wins}`}
+                </span>
+              );
+            })}
+            <span className="ml-auto text-[10.5px] text-muted">{wins} win{wins === 1 ? '' : 's'} so far</span>
+          </div>
         </div>
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

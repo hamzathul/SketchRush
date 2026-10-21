@@ -60,9 +60,12 @@ export function Game() {
   if (!state) return null;
 
   const unread = chatOpen ? 0 : Math.max(0, chat.length - seenCount);
+  const me = state.players.find((player) => player.id === state.you.id);
+  const onFire = Boolean(me && me.streak >= 3) && state.phase === 'drawing';
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
+      {onFire ? <div aria-hidden="true" className="streak-glow pointer-events-none fixed inset-0 z-20" /> : null}
       <TopBar />
       <PlayerRail variant="mobile" />
 

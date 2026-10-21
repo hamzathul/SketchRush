@@ -438,7 +438,15 @@ function ChoosingOverlay() {
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center bg-night/45 backdrop-blur-[2px]">
       <div className="panel flex flex-col items-center gap-2.5 px-6 py-5 text-center">
-        {artist ? <Avatar seed={artist.avatarSeed} name={artist.nickname} size={44} className="rounded-xl" /> : null}
+        {artist ? (
+          <Avatar
+            seed={artist.avatarSeed}
+            name={artist.nickname}
+            size={44}
+            className="rounded-xl"
+            cosmetic={artist.cosmetic}
+          />
+        ) : null}
         <p className="text-sm">
           <span className="font-semibold">{artist?.nickname ?? 'The artist'}</span>{' '}
           <span className="text-muted">is picking a word…</span>

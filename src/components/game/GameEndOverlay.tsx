@@ -9,7 +9,8 @@ import { toast } from 'sonner';
 import { Avatar } from '@/components/Avatar';
 import { useGameStore } from '@/lib/store';
 import { getSocket } from '@/lib/socket';
-import { clearSession } from '@/lib/session';
+import { COSMETICS, cosmeticEmoji, cosmeticForWins } from '@/lib/game-config';
+import { addWin, clearSession, getWins } from '@/lib/session';
 import { sfx } from '@/lib/sound';
 import { cn } from '@/lib/cn';
 
@@ -34,6 +35,18 @@ export function GameEndOverlay() {
     if (fired.current === key) return;
     fired.current = key;
     sfx.win();
+
+    // Winning games unlocks avatar charms on this device; tell the room right away.
+    if (results[0]?.playerId === state.you.id && !state.you.isSpectator) {
+      const wins = addWin();
+      const unlocked = cosmeticForWins(wins);
+      if (unlocked && unlocked !== cosmeticForWins(wins - 1)) {
+        toast.success(`New winner charm unlocked: ${cosmeticEmoji(unlocked)}`, {
+          description: 'It now rides in the corner of your avatar.',
+        });
+        getSocket().emit('player:cosmetic', { cosmetic: unlocked });
+      }
+    }
 
     const end = Date.now() + 2_200;
     let frameId = 0;
@@ -78,6 +91,12 @@ export function GameEndOverlay() {
   const rest = results.slice(3);
   const isHost = state.hostId === state.you.id;
   const isPlayer = !state.you.isSpectator;
+  const wins = getWins();
+  const nextCharm = COSMETICS.find((cosmetic) => wins < cosmetic.wins);
+
+  /** Charms update live, so prefer the player list over the frozen game result. */
+  const charmFor = (playerId: string, fallback: string | null) =>
+    state.players.find((player) => player.id === playerId)?.cosmetic ?? fallback;
 
   const fastest = results
     .filter((result) => result.stats.fastestGuessMs !== null)
@@ -160,6 +179,7 @@ export function GameEndOverlay() {
                       name={result.nickname}
                       size={place === 1 ? 64 : 46}
                       className="rounded-2xl"
+                      cosmetic={charmFor(result.playerId, result.cosmetic)}
                     />
                     {place === 1 ? (
                       <span className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-lime text-black shadow-lg">
@@ -211,7 +231,13 @@ export function GameEndOverlay() {
                     key={result.playerId}
                     className="flex items-center gap-2 rounded-xl border border-white/6 bg-white/3 px-2.5 py-1.5"
                   >
-                    <Avatar seed={result.avatarSeed} name={result.nickname} size={24} className="rounded-md" />
+                    <Avatar
+                      seed={result.avatarSeed}
+                      name={result.nickname}
+                      size={24}
+                      className="rounded-md"
+                      cosmetic={charmFor(result.playerId, result.cosmetic)}
+                    />
                     <span className="min-w-0 flex-1 truncate text-xs">{result.nickname}</span>
                     <span className="flex items-center gap-1 text-[10px] text-muted">
                       <Flame size={9} /> {result.stats.correctGuesses}
@@ -263,6 +289,11 @@ export function GameEndOverlay() {
 
         <p className="mt-4 text-center text-[11px] text-muted">
           Tip: the host can return to the lobby to change rounds, time or custom words.
+        </p>
+        <p className="mt-1 text-center text-[10.5px] text-muted/80">
+          {nextCharm
+            ? `Winner charms: ${wins} win${wins === 1 ? '' : 's'} — ${nextCharm.wins - wins} more for ${nextCharm.emoji} ${nextCharm.label}.`
+            : `Winner charms: all unlocked 👑 — ${wins} wins on this device.`}
         </p>
       </motion.div>
     </div>

@@ -14,15 +14,30 @@ export function RoundEndOverlay() {
   const state = useGameStore((store) => store.state);
   const now = useServerNow(200);
   const firedFor = useRef<number | null>(null);
+  const timers = useRef<number[]>([]);
 
   const result = state?.roundResult ?? null;
   const active = state?.phase === 'round_end' && Boolean(result);
+
+  // Clear any pending drumroll ticks when the overlay unmounts.
+  useEffect(() => {
+    const pending = timers;
+    return () => {
+      for (const timer of pending.current) window.clearTimeout(timer);
+      pending.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     if (!active || !result || !state) return;
     if (firedFor.current === result.endedAt) return;
     firedFor.current = result.endedAt;
     sfx.reveal();
+
+    // Drumroll: one tick per letter as the word flips in, then a final flourish.
+    const letters = Array.from(result.word);
+    timers.current = letters.map((_, index) => window.setTimeout(() => sfx.tick(), 260 + index * 110));
+    timers.current.push(window.setTimeout(() => sfx.reveal(), 260 + letters.length * 110 + 90));
 
     if (result.guesses.some((guess) => guess.playerId === state.you.id)) {
       confetti({
@@ -61,7 +76,20 @@ export function RoundEndOverlay() {
           </p>
           <p className="relative mt-2 text-sm text-muted">Turn complete. The word was</p>
           <h2 className="relative mt-1 font-display text-4xl font-bold tracking-tight text-lime sm:text-5xl">
-            {result.word}
+            <span className="sr-only">{result.word}</span>
+            <span aria-hidden="true" className="inline-flex flex-wrap justify-center">
+              {Array.from(result.word).map((letter, index) => (
+                <motion.span
+                  key={`${letter}-${index}`}
+                  initial={{ opacity: 0, y: -20, rotate: -12, scale: 0.6 }}
+                  animate={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
+                  transition={{ delay: 0.26 + index * 0.11, type: 'spring', stiffness: 320, damping: 20 }}
+                  className="inline-block"
+                >
+                  {letter === ' ' ? '\u00a0' : letter}
+                </motion.span>
+              ))}
+            </span>
           </h2>
 
           <div className="relative mt-4 inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/4 px-3 py-1.5">
@@ -72,6 +100,29 @@ export function RoundEndOverlay() {
         </div>
 
         <div className="max-h-[42dvh] overflow-y-auto px-4 py-4">
+          {result.nearMiss ? (
+            <div
+              data-testid="near-miss"
+              className="mb-3 flex items-center gap-2.5 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2"
+            >
+              <span aria-hidden="true" className="text-xl">
+                😮
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200/90">
+                  So close
+                </p>
+                <p className="truncate text-sm">
+                  <span className="font-semibold">{result.nearMiss.nickname}</span>{' '}
+                  <span className="text-muted">typed</span> “{result.nearMiss.text}”{' '}
+                  <span className="text-muted">
+                    — {result.nearMiss.offBy === 1 ? 'one letter' : 'two letters'} off!
+                  </span>
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           <div className="mb-2 flex items-center justify-between px-1">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Correct guesses</p>
             <span className="chip">{result.guesses.length} found it</span>
