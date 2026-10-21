@@ -3,10 +3,17 @@ services:
     name: sketchrush
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    # Singapore is closest for India/Asia — use oregon, ohio, virginia or frankfurt if you prefer.
+    region: singapore
+    # Render sets NODE_ENV=production from envVars below, and `npm ci` would then skip
+    # devDependencies (Tailwind, TypeScript, @types/*) and break `next build`.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
+    autoDeploy: true
     envVars:
+      - key: NODE_VERSION
+        value: 24.21.0
       - key: NODE_ENV
         value: production
       - key: NEXT_TELEMETRY_DISABLED
