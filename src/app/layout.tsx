@@ -3,21 +3,24 @@ import '@fontsource-variable/inter';
 import '@fontsource-variable/space-grotesk';
 import './globals.css';
 import { Toaster } from 'sonner';
-import { BRAND } from '@/lib/brand';
+import { BRAND, SITE_URL } from '@/lib/brand';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: `${BRAND.name} — ${BRAND.tagline}`,
     template: `%s · ${BRAND.name}`,
   },
   description: BRAND.description,
   applicationName: BRAND.name,
+  alternates: { canonical: '/' },
   keywords: ['drawing game', 'pictionary', 'multiplayer', 'online game', 'draw and guess', 'party game'],
   openGraph: {
     title: `${BRAND.name} — ${BRAND.tagline}`,
     description: BRAND.description,
     type: 'website',
     siteName: BRAND.name,
+    url: '/',
   },
   twitter: {
     card: 'summary_large_image',

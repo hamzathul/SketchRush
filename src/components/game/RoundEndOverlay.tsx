@@ -9,9 +9,11 @@ import { useGameStore } from '@/lib/store';
 import { TIMING } from '@/lib/game-config';
 import { useServerNow } from '@/lib/use-server-now';
 import { sfx } from '@/lib/sound';
+import { DrawingReplay } from './DrawingReplay';
 
 export function RoundEndOverlay() {
   const state = useGameStore((store) => store.state);
+  const replayFrames = useGameStore((store) => store.replay.frames);
   const now = useServerNow(200);
   const firedFor = useRef<number | null>(null);
   const timers = useRef<number[]>([]);
@@ -99,7 +101,9 @@ export function RoundEndOverlay() {
           </div>
         </div>
 
-        <div className="max-h-[42dvh] overflow-y-auto px-4 py-4">
+        <div className="max-h-[46dvh] overflow-y-auto px-4 py-4">
+          <DrawingReplay frames={replayFrames} className="mb-3" />
+
           {result.nearMiss ? (
             <div
               data-testid="near-miss"

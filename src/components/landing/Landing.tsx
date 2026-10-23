@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import {
   ArrowRight,
   Dices,
+  History,
   Keyboard,
   LogIn,
   MousePointerClick,
@@ -16,6 +17,7 @@ import {
   Trophy,
   Users,
   Wifi,
+  X,
   Zap,
 } from 'lucide-react';
 import { randomAvatarSeed } from '@/components/Avatar';
@@ -25,6 +27,7 @@ import { HowToPlayDialog } from '@/components/HowToPlayDialog';
 import { getSocket } from '@/lib/socket';
 import { getAvatarSeed, getNickname, getWins, saveAvatarSeed, saveNickname, saveSession } from '@/lib/session';
 import { cosmeticForWins } from '@/lib/game-config';
+import { clearRecentRooms, forgetRoom, getRecentRooms, timeAgo, type RecentRoom } from '@/lib/recent-rooms';
 import { useGameStore } from '@/lib/store';
 import { sfx } from '@/lib/sound';
 import type { Ack } from '@/lib/types';
@@ -32,6 +35,12 @@ import type { RoomCreatedData } from '@/lib/socket-events';
 import { BRAND } from '@/lib/brand';
 
 type Mode = 'create' | 'join';
+
+function extractRoomCode(raw: string): string {
+  const fromUrl = raw.match(/\/room\/([a-z0-9]{4,8})/i);
+  if (fromUrl) return fromUrl[1].toUpperCase();
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+}
 
 function connectSocket(): Promise<void> {
   const socket = getSocket();
@@ -113,12 +122,21 @@ export function Landing() {
   const [busy, setBusy] = useState(false);
   const [online, setOnline] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [recent, setRecent] = useState<RecentRoom[]>([]);
+  const joinInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setNickname(getNickname());
     setAvatarSeed(getAvatarSeed() || randomAvatarSeed());
+    setRecent(getRecentRooms());
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (mode !== 'join') return;
+    const timer = window.setTimeout(() => joinInputRef.current?.focus(), 80);
+    return () => window.clearTimeout(timer);
+  }, [mode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,7 +223,7 @@ export function Landing() {
     event.preventDefault();
     setError('');
     const name = nickname.trim();
-    const code = joinCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const code = extractRoomCode(joinCode);
 
     if (name.length < 2) {
       setError('Nickname needs at least 2 characters.');
@@ -219,6 +237,21 @@ export function Landing() {
     sfx.click();
     persistIdentity(name);
     router.push(`/room/${code}`);
+  };
+
+  const rejoin = (code: string) => {
+    const name = nickname.trim();
+    if (name.length >= 2 && name.length <= 16) persistIdentity(name);
+    sfx.click();
+    router.push(`/room/${code}`);
+  };
+
+  const handleCodePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    const extracted = extractRoomCode(event.clipboardData.getData('text'));
+    if (!extracted) return;
+    event.preventDefault();
+    setJoinCode(extracted);
+    setError('');
   };
 
   const switchMode = (next: Mode) => {
@@ -303,7 +336,7 @@ export function Landing() {
                 <Users size={15} className="text-accent-2" /> Up to 16 players
               </span>
               <span className="flex items-center gap-1.5">
-                <PenLine size={15} className="text-accent-2" /> Pen, marker, fill
+                <PenLine size={15} className="text-accent-2" /> Pen, shapes, fill
               </span>
               <span className="flex items-center gap-1.5">
                 <Keyboard size={15} className="text-accent-2" /> Desktop + mobile
@@ -397,20 +430,24 @@ export function Landing() {
                       </label>
                       <input
                         id="room-code"
+                        ref={joinInputRef}
                         className="input text-center font-display text-xl font-bold uppercase tracking-[0.35em]"
                         placeholder="A7K2Q9"
                         value={joinCode}
                         maxLength={8}
                         autoComplete="off"
-                        onChange={(event) =>
-                          setJoinCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))
-                        }
+                        spellCheck={false}
+                        onChange={(event) => setJoinCode(extractRoomCode(event.target.value))}
+                        onPaste={handleCodePaste}
                       />
+                      <p className="mt-1.5 text-center text-[10px] text-muted">
+                        Tip: pasting a full invite link works too.
+                      </p>
                     </div>
                   )}
 
                   {error ? (
-                    <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                    <p role="alert" className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                       {error}
                     </p>
                   ) : null}
@@ -432,6 +469,65 @@ export function Landing() {
                     )}
                   </button>
                 </form>
+
+                {recent.length > 0 ? (
+                  <div className="mt-4 border-t border-white/8 pt-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.18em] text-muted">
+                        <History size={12} /> Jump back in
+                      </p>
+                      <button
+                        type="button"
+                        className="rounded-md px-1.5 py-0.5 text-[10.5px] font-medium text-muted transition hover:bg-white/6 hover:text-danger"
+                        onClick={() => {
+                          clearRecentRooms();
+                          setRecent([]);
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      {recent.map((room) => (
+                        <div
+                          key={room.code}
+                          className="group flex items-center gap-1 rounded-xl border border-white/6 bg-white/3 p-1 transition hover:border-accent/25 hover:bg-accent/5"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => rejoin(room.code)}
+                            className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 text-left"
+                          >
+                            <span className="shrink-0 rounded-lg border border-white/8 bg-black/25 px-2.5 py-1.5 font-display text-xs font-bold tracking-[0.18em] text-lime">
+                              {room.code}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-xs font-medium text-ink">
+                                {room.nickname ? `Played as ${room.nickname}` : 'Rejoin room'}
+                              </span>
+                              <span className="block text-[10.5px] text-muted">{timeAgo(room.at)}</span>
+                            </span>
+                            <ArrowRight
+                              size={14}
+                              className="shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-lime"
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Forget room ${room.code}`}
+                            className="rounded-md p-2 text-muted transition hover:bg-white/8 hover:text-danger"
+                            onClick={() => {
+                              forgetRoom(room.code);
+                              setRecent(getRecentRooms());
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
                   No account. No download. Just a link and questionable art skills.

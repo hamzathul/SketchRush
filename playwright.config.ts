@@ -22,7 +22,8 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Pixel 7'] } },
   ],
   webServer: {
-    command: 'npm run dev',
+    // Use a non-watch server for tests so screenshot writes cannot restart it mid-run.
+    command: 'npx tsx server.ts',
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: true,
     timeout: 120_000,

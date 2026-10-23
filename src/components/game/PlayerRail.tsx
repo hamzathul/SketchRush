@@ -34,6 +34,7 @@ export function PlayerRail({ variant = 'desktop', className }: { variant?: 'desk
             />
             <span className="max-w-[72px] truncate text-[11px] font-medium">{player.nickname}</span>
             <span className="font-display text-[11px] font-bold text-lime">{player.score}</span>
+            {player.isSpectator ? <Eye size={10} className="text-accent" /> : null}
             {player.id === state.artistId ? <Pencil size={10} className="text-accent-2" /> : null}
             {state.guessedIds.includes(player.id) ? <span className="text-[9px] text-lime">✓</span> : null}
           </div>
@@ -93,7 +94,7 @@ export function PlayerRail({ variant = 'desktop', className }: { variant?: 'desk
                 <div className="flex items-center gap-1 text-[10px] text-muted">
                   {player.isSpectator ? (
                     <>
-                      <Eye size={9} /> spectator
+                      <Eye size={9} /> spectator · next round
                     </>
                   ) : state.guessedIds.includes(player.id) ? (
                     <span className="text-lime">guessed ✓</span>

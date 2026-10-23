@@ -12,6 +12,11 @@ interface CanvasState {
   revision: number;
 }
 
+interface ReplayState {
+  key: string;
+  frames: string[];
+}
+
 interface GameStore {
   state: PublicState | null;
   chat: ChatMessage[];
@@ -21,6 +26,7 @@ interface GameStore {
   endedReason: string | null;
   clockOffset: number;
   canvas: CanvasState;
+  replay: ReplayState;
   reactions: ReactionWithKey[];
   setState: (state: PublicState) => void;
   setChat: (messages: ChatMessage[]) => void;
@@ -32,16 +38,21 @@ interface GameStore {
   setCanvas: (canvas: { baseImage: string | null; strokes: Stroke[]; active: Stroke[] }) => void;
   startActive: (stroke: Stroke) => void;
   appendActive: (id: string, points: Stroke['points']) => void;
+  replaceActive: (id: string, points: Stroke['points']) => void;
   endActive: (id: string) => void;
   removeStroke: (id: string) => void;
   resetCanvas: () => void;
   setSnapshot: (dataUrl: string) => void;
+  beginReplay: (key: string) => void;
+  addReplayFrame: (frame: string) => void;
+  clearReplay: () => void;
   addReaction: (reaction: ReactionEvent) => void;
   removeReaction: (key: string) => void;
   resetRoom: () => void;
 }
 
 const emptyCanvas: CanvasState = { baseImage: null, strokes: [], active: [], revision: 0 };
+const emptyReplay: ReplayState = { key: '', frames: [] };
 
 export const useGameStore = create<GameStore>((set) => ({
   state: null,
@@ -52,6 +63,7 @@ export const useGameStore = create<GameStore>((set) => ({
   endedReason: null,
   clockOffset: 0,
   canvas: emptyCanvas,
+  replay: emptyReplay,
   reactions: [],
 
   setState: (state) =>
@@ -63,6 +75,8 @@ export const useGameStore = create<GameStore>((set) => ({
       chat: current.state && current.state.code !== state.code ? [] : current.chat,
       canvas:
         current.state && current.state.code !== state.code ? { ...emptyCanvas } : current.canvas,
+      replay:
+        current.state && current.state.code !== state.code ? { ...emptyReplay } : current.replay,
       // Reactions belong to the screen they were sent on — drop them when the phase or room changes.
       reactions:
         current.state && current.state.code === state.code && current.state.phase === state.phase
@@ -118,6 +132,17 @@ export const useGameStore = create<GameStore>((set) => ({
       },
     })),
 
+  replaceActive: (id, points) =>
+    set((current) => ({
+      canvas: {
+        ...current.canvas,
+        active: current.canvas.active.map((stroke) =>
+          stroke.id === id ? { ...stroke, points } : stroke,
+        ),
+        revision: current.canvas.revision + 1,
+      },
+    })),
+
   endActive: (id) =>
     set((current) => {
       const stroke = current.canvas.active.find((item) => item.id === id);
@@ -162,6 +187,26 @@ export const useGameStore = create<GameStore>((set) => ({
       },
     })),
 
+  beginReplay: (key) =>
+    set((current) =>
+      current.replay.key === key
+        ? current
+        : { replay: { key, frames: [] } },
+    ),
+
+  addReplayFrame: (frame) =>
+    set((current) => {
+      if (current.replay.frames[current.replay.frames.length - 1] === frame) return current;
+      return {
+        replay: {
+          ...current.replay,
+          frames: [...current.replay.frames, frame].slice(-18),
+        },
+      };
+    }),
+
+  clearReplay: () => set({ replay: { ...emptyReplay } }),
+
   addReaction: (reaction) =>
     set((current) => ({
       reactions: [...current.reactions.slice(-14), { ...reaction, key: reaction.id }],
@@ -178,6 +223,7 @@ export const useGameStore = create<GameStore>((set) => ({
       endedReason: null,
       clockOffset: 0,
       canvas: { ...emptyCanvas, revision: 0 },
+      replay: { ...emptyReplay },
       reactions: [],
     }),
 }));

@@ -100,6 +100,8 @@ export interface ClientToServerEvents {
   'stroke:undo': (payload: StrokeUndoPayload) => void;
   'canvas:clear': () => void;
   'canvas:snapshot': (payload: CanvasSnapshotPayload) => void;
+  /** Undo the most recent bucket fill or clear (restores the flattened canvas). */
+  'canvas:undo': () => void;
   'chat:send': (payload: ChatSendPayload) => void;
   'player:cosmetic': (payload: CosmeticPayload) => void;
   'reaction:send': (payload: ReactionSendPayload) => void;
@@ -117,6 +119,7 @@ export interface ServerToClientEvents {
   'stroke:remove': (payload: StrokeUndoPayload) => void;
   'canvas:reset': () => void;
   'canvas:snapshot': (payload: CanvasSnapshotPayload) => void;
+  'canvas:restore': (payload: CanvasInit) => void;
   reaction: (reaction: ReactionEvent) => void;
   notification: (payload: { message: string; kind?: NotificationKind }) => void;
   'room:ended': (payload: { reason: string }) => void;

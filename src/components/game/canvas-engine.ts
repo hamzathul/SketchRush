@@ -340,4 +340,38 @@ export class CanvasEngine {
   toDataURL(): string {
     return this.base.toDataURL('image/png');
   }
+
+  /**
+   * A small JPEG frame for the end-of-round flipbook. It includes the active
+   * strokes so the final replay frame matches what everyone just saw.
+   */
+  toReplayFrame(maxWidth = 480): string | null {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    if (!width || !height || this.cssWidth <= 0 || this.cssHeight <= 0) return null;
+
+    const targetWidth = Math.max(1, Math.min(maxWidth, width));
+    const targetHeight = Math.max(1, Math.round((height / width) * targetWidth));
+    const frame = document.createElement('canvas');
+    frame.width = targetWidth;
+    frame.height = targetHeight;
+    const context = frame.getContext('2d');
+    if (!context) return null;
+
+    context.drawImage(this.base, 0, 0, targetWidth, targetHeight);
+
+    if (this.active.size > 0) {
+      context.setTransform(
+        targetWidth / this.cssWidth,
+        0,
+        0,
+        targetHeight / this.cssHeight,
+        0,
+        0,
+      );
+      for (const stroke of this.active.values()) this.drawStroke(context, stroke);
+    }
+
+    return frame.toDataURL('image/jpeg', 0.62);
+  }
 }

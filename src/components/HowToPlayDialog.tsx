@@ -13,7 +13,7 @@ const steps = [
   {
     icon: <Timer size={18} />,
     title: 'Draw fast',
-    text: 'Sketch with a pen, marker, highlighter or bucket fill before the timer runs out. No erasing the clock.',
+    text: 'Sketch with pen, marker, highlighter, bucket fill, or line, rectangle and ellipse shapes. Fill and clear can be undone.',
   },
   {
     icon: <Lightbulb size={18} />,
@@ -67,8 +67,9 @@ export function HowToPlayDialog({ trigger }: { trigger: ReactNode }) {
 
       <p className="mt-4 text-xs leading-relaxed text-muted">
         Tip: <span className="text-ink">B / M / H / E / F</span> switch tools,{' '}
-        <span className="text-ink">[ / ]</span> change brush size, <span className="text-ink">Ctrl+Z</span> undoes your
-        last stroke. The artist&apos;s chat is blocked from saying the answer out loud.
+        <span className="text-ink">L / R / O</span> draw shapes, <span className="text-ink">[ / ]</span> change brush
+        size, <span className="text-ink">Ctrl+Z</span> undoes your last action. Spectators join at the next round, every
+        round ends with a replay, and the game ends with a shareable recap.
       </p>
     </Modal>
   );

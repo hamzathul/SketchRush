@@ -88,6 +88,10 @@ function bind(socketInstance: Socket<ServerToClientEvents, ClientToServerEvents>
     store().setSnapshot(dataUrl);
   });
 
+  socketInstance.on('canvas:restore', (canvas) => {
+    store().setCanvas(canvas);
+  });
+
   socketInstance.on('reaction', (reaction) => {
     store().addReaction(reaction);
     setTimeout(() => store().removeReaction(reaction.id), 3_200);

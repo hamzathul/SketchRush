@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   Check,
+  ChevronDown,
   Clock,
   Copy,
   Crown,
+  Flame,
   Lightbulb,
   Link2,
   Loader2,
@@ -24,6 +26,7 @@ import {
   UserCog,
   UserMinus,
   Users,
+  Zap,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
@@ -50,6 +53,43 @@ const ROUND_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10];
 const TIME_OPTIONS = [30, 45, 60, 80, 100, 120, 150, 180];
 const MAX_PLAYER_OPTIONS = [4, 6, 8, 10, 12, 16];
 const HINT_OPTIONS = [0, 1, 2, 3];
+
+const PRESETS: Array<{
+  id: string;
+  label: string;
+  detail: string;
+  icon: React.ReactNode;
+  patch: Partial<RoomSettings>;
+}> = [
+  {
+    id: 'quick',
+    label: 'Quick',
+    detail: '2 rounds · 45s',
+    icon: <Zap size={13} />,
+    patch: { rounds: 2, drawTime: 45, hints: 1, difficulty: 'mixed' },
+  },
+  {
+    id: 'party',
+    label: 'Party',
+    detail: '5 rounds · 80s',
+    icon: <Sparkles size={13} />,
+    patch: { rounds: 5, drawTime: 80, hints: 2, difficulty: 'mixed' },
+  },
+  {
+    id: 'chill',
+    label: 'Chill',
+    detail: '3 rounds · 150s',
+    icon: <Clock size={13} />,
+    patch: { rounds: 3, drawTime: 150, hints: 3, difficulty: 'easy' },
+  },
+  {
+    id: 'hardcore',
+    label: 'Hardcore',
+    detail: '5 rounds · 40s',
+    icon: <Flame size={13} />,
+    patch: { rounds: 5, drawTime: 40, hints: 0, difficulty: 'hard' },
+  },
+];
 
 type PendingAction =
   | { kind: 'kick'; playerId: string; nickname: string }
@@ -85,6 +125,12 @@ export function Lobby() {
   const isHost = state.you.id === state.hostId;
   const connectedPlayers = activePlayers.filter((player) => player.connected);
   const canStart = isHost && connectedPlayers.length >= 2;
+  const activePreset =
+    PRESETS.find((preset) =>
+      Object.entries(preset.patch).every(
+        ([key, value]) => state.settings[key as keyof RoomSettings] === value,
+      ),
+    )?.id ?? '';
   const socket = getSocket();
 
   const updateSettings = (patch: Partial<RoomSettings>) => {
@@ -237,8 +283,8 @@ export function Lobby() {
           </div>
         </div>
 
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(340px,400px)_minmax(0,1fr)]">
-          <section className="panel p-4 sm:p-5 lg:order-2 lg:col-start-2">
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(340px,400px)_minmax(0,1fr)] lg:items-stretch">
+          <section className="panel p-4 sm:p-5 lg:order-2 lg:col-start-2 lg:row-start-1">
             <div className="flex flex-col gap-3 pb-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="font-display text-lg font-semibold">Ready to play?</h2>
@@ -265,10 +311,15 @@ export function Lobby() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
                   <Stat icon={<Target size={13} />} value={`${state.settings.rounds}`} label="rounds" />
                   <Stat icon={<Clock size={13} />} value={`${state.settings.drawTime}s`} label="per turn" />
                   <Stat icon={<Lightbulb size={13} />} value={`${state.settings.hints}`} label="hints" />
+                  <Stat
+                    icon={<Star size={13} />}
+                    value={state.settings.difficulty === 'mixed' ? 'Mixed' : state.settings.difficulty === 'easy' ? 'Easy' : 'Hard'}
+                    label="words"
+                  />
                 </div>
               </div>
             </div>
@@ -313,7 +364,11 @@ export function Lobby() {
                           {isYou ? <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-muted">you</span> : null}
                         </div>
                         <p className="mt-0.5 text-[11px] text-muted">
-                          {player.isSpectator ? 'Spectator — joins next game' : player.connected ? 'Ready' : 'Reconnecting…'}
+                          {player.isSpectator
+                            ? 'Spectator — joins next round'
+                            : player.connected
+                              ? 'Ready'
+                              : 'Reconnecting…'}
                         </p>
                       </div>
 
@@ -359,89 +414,13 @@ export function Lobby() {
               </p>
             </div>
 
-            <div className="mt-6 grid gap-4 border-t border-white/6 pt-5 xl:grid-cols-[1.12fr_0.88fr]">
-              <div>
-                <h3 className="font-display text-sm font-semibold">How a turn works</h3>
-                <ol className="mt-3 space-y-2">
-                  {[
-                    {
-                      title: 'The artist picks a word',
-                      text: 'Three choices appear — easy, medium or hard. Harder words pay more.',
-                    },
-                    {
-                      title: 'Draw before the clock runs out',
-                      text: `${state.settings.drawTime} seconds on the canvas. Hints reveal letters along the way.`,
-                    },
-                    {
-                      title: 'Everyone else guesses in chat',
-                      text: 'The first correct guess ends the turn. Speed and streaks score big.',
-                    },
-                  ].map((step, index) => (
-                    <li
-                      key={step.title}
-                      className="flex gap-3 rounded-xl border border-white/6 bg-white/3 px-3 py-2.5"
-                    >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-accent/15 font-display text-[11px] font-bold text-accent-2">
-                        {index + 1}
-                      </span>
-                      <div>
-                        <p className="text-xs font-semibold text-ink">{step.title}</p>
-                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted">{step.text}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-
-              <div className="rounded-xl border border-white/6 bg-black/15 p-3.5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent-2">Word values</p>
-                <p className="mt-1 text-[11px] leading-relaxed text-muted">
-                  Artist points. Guessers also earn speed bonuses.
-                </p>
-                <div className="mt-3 space-y-1.5">
-                  {[
-                    { stars: 1, label: 'Easy' },
-                    { stars: 2, label: 'Medium' },
-                    { stars: 3, label: 'Hard' },
-                  ].map((tier) => (
-                    <div key={tier.label} className="rounded-lg border border-white/5 bg-white/3 px-2.5 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-0.5">
-                          {Array.from({ length: 3 }).map((_, index) => (
-                            <Star
-                              key={index}
-                              size={10}
-                              className={index < tier.stars ? 'fill-lime text-lime' : 'text-white/15'}
-                            />
-                          ))}
-                          <span className="ml-1.5 text-[11px] text-muted">{tier.label}</span>
-                        </span>
-                        <span className="font-display text-[11px] font-bold text-lime">
-                          +{artistPointsForGuess(tier.stars)} / guess
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-right text-[9px] text-muted">
-                        +{artistBonusPoints(tier.stars)} when 75% guess it
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex items-start gap-2.5 border-t border-white/6 pt-4 text-xs leading-relaxed text-muted">
-              <Lightbulb size={15} className="mt-0.5 shrink-0 text-lime" />
-              <p>
-                Pro tip: harder words pay the artist more. In mixed mode you get one easy, one medium and one hard word
-                to choose from.
-              </p>
-            </div>
           </section>
 
-          <aside className="space-y-4 lg:order-1">
-            <ChatPanel className="h-[420px] sm:h-[480px] lg:h-[560px] xl:h-[620px]" />
+          <aside className="lg:order-1 lg:col-start-1 lg:row-start-1 lg:row-span-2 lg:flex lg:flex-col">
+            <ChatPanel className="h-[420px] sm:h-[480px] lg:h-auto lg:min-h-[560px] lg:flex-1 xl:min-h-[620px]" />
+          </aside>
 
-            <div className="panel p-5">
+          <div className="panel p-5 lg:order-2 lg:col-start-2 lg:row-start-2">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
                   <Settings2 size={17} className="text-accent-2" /> Game settings
@@ -453,6 +432,47 @@ export function Lobby() {
                     <Lock size={10} /> Host only
                   </span>
                 )}
+              </div>
+
+              <div className="mb-4 border-b border-white/6 pb-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Quick presets</p>
+                  {!isHost ? <span className="text-[10px] text-muted">Host sets the pace</span> : null}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {PRESETS.map((preset) => {
+                    const active = activePreset === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        disabled={!isHost}
+                        aria-pressed={active}
+                        title={isHost ? `Apply ${preset.label} settings` : 'Only the host can change settings'}
+                        onClick={() => updateSettings(preset.patch)}
+                        className={cn(
+                          'rounded-xl border px-2.5 py-2 text-left transition',
+                          active
+                            ? 'border-lime/35 bg-lime/8 shadow-[inset_0_0_0_1px_rgba(184,243,107,0.08)]'
+                            : 'border-white/7 bg-white/3',
+                          isHost && !active ? 'hover:border-white/14 hover:bg-white/6' : '',
+                          !isHost && 'cursor-not-allowed opacity-55',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'flex items-center gap-1.5 text-[11px] font-semibold',
+                            active ? 'text-lime' : 'text-ink',
+                          )}
+                        >
+                          {preset.icon}
+                          {preset.label}
+                        </span>
+                        <span className="mt-0.5 block text-[10px] text-muted">{preset.detail}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -602,17 +622,137 @@ export function Lobby() {
               </div>
             </div>
 
-          </aside>
         </div>
+
+        <section className="mt-5">
+          <details className="panel group overflow-hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 text-sm font-semibold marker:hidden [&::-webkit-details-marker]:hidden sm:px-5">
+              <span className="flex items-center gap-2">
+                <Sparkles size={16} className="text-lime" /> How a turn works &amp; scoring
+              </span>
+              <span className="flex items-center gap-2 text-[11px] font-normal text-muted">
+                Quick reference
+                <ChevronDown size={15} className="transition group-open:rotate-180" />
+              </span>
+            </summary>
+
+            <div className="border-t border-white/6 px-4 py-4 sm:px-5 sm:py-5">
+              <div className="grid gap-4 xl:grid-cols-[1.12fr_0.88fr]">
+                <div>
+                  <h3 className="font-display text-sm font-semibold">The loop</h3>
+                  <ol className="mt-3 space-y-2">
+                    {[
+                      {
+                        title: 'The artist picks a word',
+                        text: 'Three choices appear — easy, medium or hard. Harder words pay more.',
+                      },
+                      {
+                        title: 'Draw before the clock runs out',
+                        text: `${state.settings.drawTime} seconds on the canvas. Pen, marker, fill, line, rectangle, ellipse — and every fill can be undone. Hints reveal letters along the way.`,
+                      },
+                      {
+                        title: 'Everyone else guesses in chat',
+                        text: 'The first correct guess ends the turn. Speed and streaks score big.',
+                      },
+                    ].map((step, index) => (
+                      <li
+                        key={step.title}
+                        className="flex gap-3 rounded-xl border border-white/6 bg-white/3 px-3 py-2.5"
+                      >
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-accent/15 font-display text-[11px] font-bold text-accent-2">
+                          {index + 1}
+                        </span>
+                        <div>
+                          <p className="text-xs font-semibold text-ink">{step.title}</p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-muted">{step.text}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                <div className="rounded-xl border border-white/6 bg-black/15 p-3.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent-2">Word values</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                    Artist points. Guessers also earn speed bonuses.
+                  </p>
+                  <div className="mt-3 space-y-1.5">
+                    {[
+                      { stars: 1, label: 'Easy' },
+                      { stars: 2, label: 'Medium' },
+                      { stars: 3, label: 'Hard' },
+                    ].map((tier) => (
+                      <div key={tier.label} className="rounded-lg border border-white/5 bg-white/3 px-2.5 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-0.5">
+                            {Array.from({ length: 3 }).map((_, index) => (
+                              <Star
+                                key={index}
+                                size={10}
+                                className={index < tier.stars ? 'fill-lime text-lime' : 'text-white/15'}
+                              />
+                            ))}
+                            <span className="ml-1.5 text-[11px] text-muted">{tier.label}</span>
+                          </span>
+                          <span className="font-display text-[11px] font-bold text-lime">
+                            +{artistPointsForGuess(tier.stars)} / guess
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-right text-[9px] text-muted">
+                          +{artistBonusPoints(tier.stars)} when 75% guess it
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-start gap-2.5 border-t border-white/6 pt-4 text-xs leading-relaxed text-muted">
+                <Lightbulb size={15} className="mt-0.5 shrink-0 text-lime" />
+                <p>
+                  Pro tip: harder words pay the artist more. In mixed mode you get one easy, one medium and one hard word
+                  to choose from.
+                </p>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {['Shapes: L / R / O', 'Every fill is undoable', 'Replay at round end', 'Spectators join next round'].map(
+                  (tip) => (
+                    <span
+                      key={tip}
+                      className="rounded-full border border-white/7 bg-white/4 px-2.5 py-1 text-[10px] text-muted"
+                    >
+                      {tip}
+                    </span>
+                  ),
+                )}
+              </div>
+            </div>
+          </details>
+        </section>
       </main>
 
       {isHost ? (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-night/90 p-3 backdrop-blur-xl lg:hidden">
+        <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-night/90 p-3 backdrop-blur-xl lg:hidden">
           <button type="button" className="btn btn-primary w-full py-3" disabled={!canStart} onClick={startGame}>
             <Play size={17} /> {canStart ? 'Start game' : 'Need 2+ players'}
           </button>
         </div>
-      ) : null}
+      ) : (
+        <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-night/90 p-3 backdrop-blur-xl lg:hidden">
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-medium text-ink">Waiting for the host…</p>
+              <p className="truncate text-[10px] text-muted">
+                Room {state.code} · {connectedPlayers.length} ready
+              </p>
+            </div>
+            <button type="button" className="btn btn-ghost h-9 px-3 text-xs" onClick={copyLink}>
+              <Link2 size={14} /> Invite
+            </button>
+          </div>
+        </div>
+      )}
 
       <Modal
         open={qrOpen}

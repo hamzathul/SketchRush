@@ -11,6 +11,7 @@ import { Game } from '@/components/game/Game';
 import { getSocket } from '@/lib/socket';
 import { useGameStore } from '@/lib/store';
 import { clearSession, loadSession } from '@/lib/session';
+import { rememberRoom } from '@/lib/recent-rooms';
 import { sfx } from '@/lib/sound';
 
 interface RoomClientProps {
@@ -68,6 +69,14 @@ export function RoomClient({ code }: RoomClientProps) {
   useEffect(() => {
     if (endedReason) setStatus('ended');
   }, [endedReason]);
+
+  const me = state?.players.find((player) => player.id === state.you.id);
+
+  // Keep a tiny rejoin list on this device. It updates only when the room or
+  // nickname changes, not on every score tick.
+  useEffect(() => {
+    if (state?.code === code) rememberRoom(code, me?.nickname);
+  }, [code, state?.code, me?.nickname]);
 
   const handleJoined = () => {
     setStatus('ready');

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
 import { motion } from 'motion/react';
-import { ArrowRight, Crown, Flame, Home, Medal, RotateCcw, Sparkles, Trophy, Users, Zap } from 'lucide-react';
+import { ArrowRight, Crown, Flame, Home, Medal, RotateCcw, Sparkles, Target, Trophy, Users, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/Avatar';
 import { useGameStore } from '@/lib/store';
@@ -13,6 +13,7 @@ import { COSMETICS, cosmeticEmoji, cosmeticForWins } from '@/lib/game-config';
 import { addWin, clearSession, getWins } from '@/lib/session';
 import { sfx } from '@/lib/sound';
 import { cn } from '@/lib/cn';
+import { RecapCard } from './RecapCard';
 
 const CONFETTI_COLORS = ['#b8f36b', '#22d3ee', '#8b5cf6', '#fbbf24', '#ffffff'];
 
@@ -205,7 +206,7 @@ export function GameEndOverlay() {
             })}
           </div>
 
-          <div className="relative mt-6 grid gap-2 px-4 sm:grid-cols-3 sm:px-8">
+          <div className="relative mt-6 grid gap-2 px-4 sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
             <Highlight
               icon={<Zap size={14} />}
               label="Fastest guess"
@@ -220,6 +221,11 @@ export function GameEndOverlay() {
               icon={<Medal size={14} />}
               label="Sharpest guesser"
               value={mostGuesses && mostGuesses.stats.correctGuesses > 0 ? `${mostGuesses.nickname} · ${mostGuesses.stats.correctGuesses}` : '—'}
+            />
+            <Highlight
+              icon={<Target size={14} />}
+              label="Closest miss"
+              value={state.gameNearMiss ? `${state.gameNearMiss.nickname} · ${state.gameNearMiss.offBy} off` : '—'}
             />
           </div>
 
@@ -264,6 +270,7 @@ export function GameEndOverlay() {
                   Back to lobby
                 </button>
               ) : null}
+              <RecapCard />
               {isPlayer ? (
                 <button
                   type="button"

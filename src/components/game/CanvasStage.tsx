@@ -14,12 +14,15 @@ import { CanvasEngine } from './canvas-engine';
 import { ReactionLayer } from './ReactionLayer';
 import { ReactionRow } from './ReactionRow';
 import { Toolbar, type UiTool } from './Toolbar';
+import { isShapeTool, shapePoints, type ShapeTool } from '@/lib/shapes';
 
 interface ActiveStroke {
   id: string;
   stroke: Stroke;
   pending: Point[];
   lastFlush: number;
+  shape: ShapeTool | null;
+  start: Point | null;
 }
 
 // A single landscape drawing surface for every client. Keeping the aspect fixed
@@ -47,12 +50,15 @@ export function CanvasStage() {
   const engineRef = useRef<CanvasEngine | null>(null);
   const strokeRef = useRef<ActiveStroke | null>(null);
 
-  const size = sizes[tool === 'fill' ? 'pen' : tool];
+  const sizeKey: Tool =
+    tool === 'pen' || tool === 'marker' || tool === 'highlighter' || tool === 'eraser'
+      ? tool
+      : 'pen';
+  const size = sizes[sizeKey];
   const canDraw = Boolean(state?.you.canDraw);
 
   const setSize = (next: number) => {
-    const key: Tool = tool === 'fill' ? 'pen' : tool;
-    setSizes((current) => ({ ...current, [key]: next }));
+    setSizes((current) => ({ ...current, [sizeKey]: next }));
   };
 
   useEffect(() => {
@@ -135,6 +141,26 @@ export function CanvasStage() {
     const active = strokeRef.current;
     if (!active) return;
 
+    if (active.shape) {
+      // Shapes are previewed locally and sent once on release: one start point,
+      // then the sampled outline, then end. This avoids a flood of socket events.
+      const points = active.stroke.points;
+      getSocket().emit('stroke:start', {
+        stroke: { ...active.stroke, points: points.slice(0, 1) },
+      });
+      const rest = points.slice(1);
+      for (let index = 0; index < rest.length; index += 150) {
+        getSocket().emit('stroke:points', {
+          id: active.id,
+          points: rest.slice(index, index + 150),
+        });
+      }
+      getSocket().emit('stroke:end', { id: active.id });
+      useGameStore.getState().endActive(active.id);
+      strokeRef.current = null;
+      return;
+    }
+
     flush(active, true);
     getSocket().emit('stroke:end', { id: active.id });
     useGameStore.getState().endActive(active.id);
@@ -156,21 +182,31 @@ export function CanvasStage() {
     }
 
     const point = pointFromEvent(event);
+    const shape = isShapeTool(tool) ? tool : null;
+    const strokeTool: Tool = shape ? 'pen' : (tool as Tool);
     const stroke: Stroke = {
       id: crypto.randomUUID(),
       playerId: state.you.id,
-      tool,
+      tool: strokeTool,
       color: tool === 'eraser' ? '#fbfbf7' : color,
       size,
-      opacity: tool === 'highlighter' ? 0.35 : tool === 'eraser' ? 1 : opacity,
+      opacity: shape ? opacity : tool === 'highlighter' ? 0.35 : tool === 'eraser' ? 1 : opacity,
       points: [point],
     };
 
     useGameStore.getState().startActive(stroke);
-    getSocket().emit('stroke:start', { stroke });
+    // Shapes stay local until they are finished so the outline does not lag.
+    if (!shape) getSocket().emit('stroke:start', { stroke });
     canvasRef.current?.setPointerCapture(event.pointerId);
 
-    strokeRef.current = { id: stroke.id, stroke, pending: [], lastFlush: performance.now() };
+    strokeRef.current = {
+      id: stroke.id,
+      stroke,
+      pending: [],
+      lastFlush: performance.now(),
+      shape,
+      start: shape ? point : null,
+    };
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -178,6 +214,13 @@ export function CanvasStage() {
     if (!active) return;
 
     const point = pointFromEvent(event);
+    if (active.shape && active.start) {
+      const points = shapePoints(active.shape, active.start, point);
+      active.stroke.points = points;
+      useGameStore.getState().replaceActive(active.id, points);
+      return;
+    }
+
     const previous = active.stroke.points[active.stroke.points.length - 1];
     if (previous && Math.abs(point.x - previous.x) + Math.abs(point.y - previous.y) < 0.0012) return;
 
@@ -187,7 +230,16 @@ export function CanvasStage() {
   };
 
   const handlePointerEnd = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!strokeRef.current) return;
+    const active = strokeRef.current;
+    if (!active) return;
+
+    if (active.shape && active.start) {
+      const point = pointFromEvent(event);
+      const points = shapePoints(active.shape, active.start, point);
+      active.stroke.points = points;
+      useGameStore.getState().replaceActive(active.id, points);
+    }
+
     finishStroke();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -199,8 +251,11 @@ export function CanvasStage() {
     const canvas = useGameStore.getState().canvas;
     const own = [...canvas.strokes, ...canvas.active].filter((stroke) => stroke.playerId === state.you.id);
     const last = own[own.length - 1];
-    if (!last) return;
-    getSocket().emit('stroke:undo', { id: last.id });
+    if (last) {
+      getSocket().emit('stroke:undo', { id: last.id });
+      return;
+    }
+    if (state.you.canUndoFill) getSocket().emit('canvas:undo');
   }, [state]);
 
   const clear = () => {
@@ -241,7 +296,16 @@ export function CanvasStage() {
       }
 
       const shortcut = event.key.toLowerCase();
-      const tools: Record<string, UiTool> = { b: 'pen', m: 'marker', h: 'highlighter', e: 'eraser', f: 'fill' };
+      const tools: Record<string, UiTool> = {
+        b: 'pen',
+        m: 'marker',
+        h: 'highlighter',
+        e: 'eraser',
+        f: 'fill',
+        l: 'line',
+        r: 'rect',
+        o: 'ellipse',
+      };
       if (tools[shortcut]) {
         setTool(tools[shortcut]);
         return;
@@ -252,14 +316,55 @@ export function CanvasStage() {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [canDraw, undo, size, tool]);
+  }, [canDraw, undo, size, tool, sizeKey]);
 
   const canUndo = useMemo(() => {
     if (!state) return false;
     const canvas = useGameStore.getState().canvas;
-    return [...canvas.strokes, ...canvas.active].some((stroke) => stroke.playerId === state.you.id);
+    const ownStroke = [...canvas.strokes, ...canvas.active].some(
+      (stroke) => stroke.playerId === state.you.id,
+    );
+    return ownStroke || Boolean(state.you.canUndoFill);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revision, state?.you.id]);
+  }, [revision, state?.you.id, state?.you.canUndoFill]);
+
+  const replayKey = state
+    ? `${state.code}:${state.round}:${state.turnIndex}:${state.artistId ?? ''}`
+    : '';
+  const drawTime = state?.settings.drawTime ?? 80;
+
+  // Capture a small frame every few seconds while the artist works. Each client
+  // captures its own canvas, so the replay works for artists and guessers alike.
+  useEffect(() => {
+    if (!state || state.phase !== 'drawing') return;
+
+    if (useGameStore.getState().replay.key !== replayKey) {
+      useGameStore.getState().beginReplay(replayKey);
+    }
+
+    let cancelled = false;
+    const capture = () => {
+      if (cancelled) return;
+      const frame = engineRef.current?.toReplayFrame();
+      if (frame) useGameStore.getState().addReplayFrame(frame);
+    };
+
+    const warm = window.setTimeout(capture, 900);
+    const interval = window.setInterval(capture, Math.max(2_500, Math.round((drawTime * 1_000) / 12)));
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(warm);
+      window.clearInterval(interval);
+    };
+  }, [state?.phase, replayKey, drawTime]);
+
+  // Grab the final canvas before the round-end overlay covers it.
+  useEffect(() => {
+    if (state?.phase !== 'round_end') return;
+    const frame = engineRef.current?.toReplayFrame();
+    if (frame) useGameStore.getState().addReplayFrame(frame);
+  }, [state?.phase]);
 
   if (!state) return null;
 
@@ -330,9 +435,11 @@ export function CanvasStage() {
           <span className="flex items-center gap-2 text-xs text-muted">
             <Eye size={14} className="text-accent-2" />
             {state.phase === 'drawing'
-              ? 'Watch the drawing — type your guess in chat'
+              ? state.you.isSpectator
+                ? "Watch the drawing — you'll join the next round"
+                : 'Watch the drawing — type your guess in chat'
               : state.you.isSpectator
-                ? 'Spectating this game — you join the next one'
+                ? "Spectating — you'll join the next round"
                 : 'Get ready for the next turn'}
           </span>
           <div className="flex items-center gap-1">

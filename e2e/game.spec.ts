@@ -16,6 +16,33 @@ async function waitForWordChooser(pages: Page[]): Promise<Page> {
   throw new Error('No word chooser appeared in time');
 }
 
+async function canvasPixel(page: Page, x: number, y: number): Promise<string> {
+  return page.locator('canvas').evaluate(
+    (element, position) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext('2d');
+      if (!context) return 'no-context';
+      const data = context.getImageData(
+        Math.floor(canvas.width * position.x),
+        Math.floor(canvas.height * position.y),
+        1,
+        1,
+      ).data;
+      return `${data[0]},${data[1]},${data[2]}`;
+    },
+    { x, y },
+  );
+}
+
+/** Let entry and scroll-reveal animations finish before taking a landing screenshot. */
+async function settleLanding(page: Page): Promise<void> {
+  await page.waitForTimeout(800);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.waitForTimeout(600);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(400);
+}
+
 test.describe('SketchRush game flow', () => {
   test.skip(({ isMobile }) => isMobile, 'The full multiplayer flow runs on the desktop project.');
 
@@ -80,6 +107,11 @@ test.describe('SketchRush game flow', () => {
       expect(selectSurface.background).not.toBe('rgba(0, 0, 0, 0)');
       expect(selectSurface.chevron).toContain('svg');
       expect(selectSurface.optionColor).not.toBe('rgba(0, 0, 0, 0)');
+
+      // Rule presets apply a coherent bundle of settings in one click.
+      await page.getByRole('button', { name: /Quick 2 rounds/ }).click();
+      await expect(page.locator('select').nth(1)).toHaveValue('2');
+      await expect(page.locator('select').nth(2)).toHaveValue('45');
 
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.waitForTimeout(150);
@@ -190,6 +222,7 @@ test.describe('SketchRush game flow', () => {
           const beforeFill = await guesser
             .locator('canvas')
             .evaluate((element) => (element as HTMLCanvasElement).toDataURL());
+          const pixelBeforeFill = await canvasPixel(guesser, 0.85, 0.85);
           await artist.getByRole('button', { name: 'Fill', exact: true }).click();
           await artist.getByRole('button', { name: 'Color #84cc16' }).click();
           await artist.mouse.click(box.x + box.width * 0.85, box.y + box.height * 0.85);
@@ -202,6 +235,10 @@ test.describe('SketchRush game flow', () => {
               { timeout: 10_000 },
             )
             .not.toBe(beforeFill);
+          await expect
+            .poll(async () => canvasPixel(guesser, 0.85, 0.85), { timeout: 10_000 })
+            .not.toBe(pixelBeforeFill);
+          const pixelAfterFill = await canvasPixel(guesser, 0.85, 0.85);
 
           await artist.getByRole('button', { name: 'Clear canvas' }).click();
           await expect(artist.getByRole('heading', { name: 'Clear the canvas?' })).toBeVisible();
@@ -214,22 +251,31 @@ test.describe('SketchRush game flow', () => {
           await expect(guesser.locator('canvas')).toBeVisible({ timeout: 20_000 });
           await expect(guesser.getByPlaceholder(/Type your guess/)).toBeVisible({ timeout: 20_000 });
           await expect
-            .poll(
-              async () =>
-                guesser.locator('canvas').evaluate((element) => {
-                  const canvas = element as HTMLCanvasElement;
-                  const context = canvas.getContext('2d');
-                  if (!context) return 0;
-                  return context.getImageData(
-                    Math.floor(canvas.width * 0.85),
-                    Math.floor(canvas.height * 0.85),
-                    1,
-                    1,
-                  ).data[1];
-                }),
-              { timeout: 15_000 },
-            )
-            .toBeGreaterThan(150);
+            .poll(async () => canvasPixel(guesser, 0.85, 0.85), { timeout: 15_000 })
+            .toBe(pixelAfterFill);
+
+          // Undo restores the flattened pre-fill canvas, even after a refresh.
+          const undo = artist.getByRole('button', { name: 'Undo last action' });
+          await expect(undo).toBeEnabled({ timeout: 10_000 });
+          await undo.click();
+          await expect
+            .poll(async () => canvasPixel(guesser, 0.85, 0.85), { timeout: 10_000 })
+            .toBe(pixelBeforeFill);
+          await artist.screenshot({ path: 'screenshots/fill-undo.png', fullPage: true });
+        } else {
+          // The recap uses the last turn, so leave a real drawing there too.
+          const box = await artist.getByLabel('Drawing canvas').boundingBox();
+          if (!box) throw new Error('Canvas has no bounding box');
+          await artist.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.45);
+          await artist.mouse.down();
+          for (let step = 1; step <= 10; step++) {
+            await artist.mouse.move(
+              box.x + box.width * (0.3 + step * 0.04),
+              box.y + box.height * (0.45 + Math.sin(step / 2) * 0.12),
+            );
+          }
+          await artist.mouse.up();
+          await artist.waitForTimeout(500);
         }
 
         const guessInput = guesser.getByPlaceholder(/Type your guess/);
@@ -260,7 +306,11 @@ test.describe('SketchRush game flow', () => {
           await expect(guesser.getByTestId('near-miss')).toContainText(nearMiss);
         }
         if (turn === 0) {
+          await expect(artist.getByTestId('round-replay')).toBeVisible();
+          await expect(artist.getByTestId('round-replay').getByRole('img')).toBeVisible();
+          await artist.waitForTimeout(1_600);
           await artist.screenshot({ path: 'screenshots/round-end.png', fullPage: true });
+          await page.screenshot({ path: 'screenshots/round-end-host.png', fullPage: true });
         }
       }
 
@@ -269,6 +319,33 @@ test.describe('SketchRush game flow', () => {
       await expect(page.getByText(/wins!/)).toBeVisible();
       await expect(page.getByText(/Winner charms:/)).toBeVisible();
       await page.screenshot({ path: 'screenshots/game-end.png', fullPage: true });
+
+      // The recap card is painted locally from the final replay frame.
+      await page.getByRole('button', { name: /Recap card/ }).click();
+      await expect(page.getByRole('heading', { name: 'Your recap' })).toBeVisible();
+      await expect(page.getByRole('img', { name: 'SketchRush game recap card' })).toBeVisible({
+        timeout: 20_000,
+      });
+      const recapHasInk = await page.evaluate(async () => {
+        const recap = document.querySelector<HTMLImageElement>('img[alt="SketchRush game recap card"]');
+        if (!recap) return false;
+        await recap.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = recap.naturalWidth;
+        canvas.height = recap.naturalHeight;
+        const context = canvas.getContext('2d');
+        if (!context) return false;
+        context.drawImage(recap, 0, 0);
+        const { data } = context.getImageData(240, 494, 600, 450);
+        for (let index = 0; index < data.length; index += 4) {
+          if (Math.min(data[index], data[index + 1], data[index + 2]) < 120) return true;
+        }
+        return false;
+      });
+      expect(recapHasInk).toBe(true);
+      await page.screenshot({ path: 'screenshots/recap-card.png', fullPage: true });
+      await page.getByRole('button', { name: 'Close dialog' }).click();
+      await expect(page.getByRole('heading', { name: 'Your recap' })).not.toBeVisible();
 
       const hostRematch = page.getByRole('button', { name: /Rematch/ });
       const guestRematch = guest.getByRole('button', { name: /Rematch/ });
@@ -284,6 +361,105 @@ test.describe('SketchRush game flow', () => {
       await guestContext.close();
     }
   });
+
+  test('promotes a mid-game spectator at the next round', async ({ page, browser }) => {
+    test.setTimeout(150_000);
+    await page.goto('/');
+    await page.getByLabel('Your nickname').fill('SpecHost');
+    await page.locator('form button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/room\/[A-Z0-9]{4,8}$/, { timeout: 20_000 });
+    const code = new URL(page.url()).pathname.split('/').pop() ?? '';
+    const origin = new URL(page.url()).origin;
+
+    const guestContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const watcherContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const guest = await guestContext.newPage();
+    const watcher = await watcherContext.newPage();
+
+    try {
+      await guest.goto(`${origin}/room/${code}`);
+      await guest.getByLabel('Your nickname').fill('SpecGuest');
+      const join = guest.getByRole('button', { name: /Join room/ });
+      await expect(join).toBeEnabled({ timeout: 15_000 });
+      await join.click();
+      await expect(page.getByText('SpecGuest', { exact: true })).toBeVisible({ timeout: 20_000 });
+
+      const selects = page.locator('select');
+      await selects.nth(1).selectOption('2');
+      await selects.nth(2).selectOption('30');
+      await expect(guest.getByText('30s').first()).toBeVisible({ timeout: 15_000 });
+
+      await page.locator('button:visible').filter({ hasText: 'Start game' }).first().click();
+
+      const roundPlayers = [page, guest];
+      const firstArtist = await waitForWordChooser(roundPlayers);
+      const firstGuesser = firstArtist === page ? guest : page;
+      const firstChooser = firstArtist.getByRole('dialog');
+      const firstWord = (await firstChooser.locator('button p').first().textContent())?.trim() ?? '';
+      await firstChooser.getByRole('button').first().click();
+      await expect(firstArtist.getByRole('button', { name: 'Pen', exact: true })).toBeVisible({
+        timeout: 15_000,
+      });
+
+      // Join after the game has started; late arrivals are seated as spectators.
+      await watcher.goto(`${origin}/room/${code}`);
+      await watcher.getByLabel('Your nickname').fill('SpecWatch');
+      const watchJoin = watcher.getByRole('button', { name: /Join room/ });
+      await expect(watchJoin).toBeEnabled({ timeout: 15_000 });
+      await watchJoin.click();
+      await expect(watcher.getByText(/Watch the drawing.*join the next round/i)).toBeVisible({
+        timeout: 20_000,
+      });
+      await expect(page.getByText(/SpecWatch joined as a spectator/)).toBeVisible({ timeout: 10_000 });
+
+      await firstGuesser.getByPlaceholder(/Type your guess/).fill(firstWord);
+      await firstGuesser.getByPlaceholder(/Type your guess/).press('Enter');
+      await expect(firstArtist.getByText('Turn complete. The word was')).toBeVisible({ timeout: 20_000 });
+
+      // Finish the second turn of round 1 so round 2 can promote the spectator.
+      const secondArtist = await waitForWordChooser(roundPlayers);
+      const secondGuesser = secondArtist === page ? guest : page;
+      const secondChooser = secondArtist.getByRole('dialog');
+      const secondWord = (await secondChooser.locator('button p').first().textContent())?.trim() ?? '';
+      await secondChooser.getByRole('button').first().click();
+      await expect(secondArtist.getByRole('button', { name: 'Pen', exact: true })).toBeVisible({
+        timeout: 15_000,
+      });
+      await secondGuesser.getByPlaceholder(/Type your guess/).fill(secondWord);
+      await secondGuesser.getByPlaceholder(/Type your guess/).press('Enter');
+      await expect(secondArtist.getByText('Turn complete. The word was')).toBeVisible({ timeout: 20_000 });
+
+      // Round 2 starts; the watcher should now be in the turn order.
+      await expect(page.getByText(/SpecWatch joined the game for round 2/)).toBeVisible({ timeout: 30_000 });
+      await expect(watcher.getByText(/joined the game for round 2/)).toBeVisible({ timeout: 10_000 });
+      await expect(watcher.getByText(/you'll join the next round/i)).not.toBeVisible({ timeout: 15_000 });
+      const nextArtist = await waitForWordChooser([page, guest, watcher]);
+      await expect(nextArtist.getByRole('dialog').getByText('Pick your word')).toBeVisible();
+      await watcher.screenshot({ path: 'screenshots/spectator-promoted.png', fullPage: true });
+    } finally {
+      await guestContext.close();
+      await watcherContext.close();
+    }
+  });
+
+  test('remembers recent rooms for one-tap rejoin', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'sketchrush:recent-rooms',
+        JSON.stringify([{ code: 'ABC123', nickname: 'Recent', at: Date.now() - 5 * 60 * 1000 }]),
+      );
+    });
+
+    await page.goto('/');
+    await expect(page.getByText('Jump back in')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Played as Recent')).toBeVisible();
+    await expect(page.getByText('ABC123', { exact: true })).toBeVisible();
+    await settleLanding(page);
+    await page.screenshot({ path: 'screenshots/landing-recent.png', fullPage: true });
+
+    await page.getByRole('button', { name: /Played as Recent/ }).click();
+    await expect(page).toHaveURL(/\/room\/ABC123$/);
+  });
 });
 
 test.describe('SketchRush mobile', () => {
@@ -293,10 +469,12 @@ test.describe('SketchRush mobile', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Draw badly');
     await expect(page.getByLabel('Your nickname')).toBeVisible();
+    await settleLanding(page);
     await page.screenshot({ path: 'screenshots/landing-mobile.png', fullPage: true });
 
     await page.getByText('From zero to chaos in 30 seconds.').scrollIntoViewIfNeeded();
     await expect(page.getByRole('heading', { name: 'Create a room' })).toBeVisible();
+    await page.waitForTimeout(700);
     await page.screenshot({ path: 'screenshots/landing-mobile-how.png', fullPage: true });
 
     await page.getByLabel('Your nickname').fill('Mobile');

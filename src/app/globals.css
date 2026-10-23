@@ -318,6 +318,11 @@ body {
   display: none;
 }
 
+/* Keeps fixed mobile action bars above the iPhone home indicator. */
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
 /* Horizontal strips that keep scrolling affordance without a scrollbar. */
 .fade-x {
   -webkit-mask-image: linear-gradient(to right, #000 84%, transparent 100%);

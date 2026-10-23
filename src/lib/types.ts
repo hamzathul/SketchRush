@@ -107,6 +107,8 @@ export interface YouState {
   maskedWord: string | null;
   choices: WordChoice[];
   canDraw: boolean;
+  /** A bucket fill or clear can be rolled back, even though it flattens the stroke log. */
+  canUndoFill: boolean;
   votedRematch: boolean;
 }
 
@@ -128,6 +130,8 @@ export interface PublicState {
   guessedIds: string[];
   roundResult: RoundResult | null;
   gameResults: GameResult[] | null;
+  /** Closest wrong guess across the whole game, kept for the end-of-game recap card. */
+  gameNearMiss: NearMiss | null;
   rematchVotes: number;
   rematchNeeded: number;
 }

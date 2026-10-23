@@ -91,11 +91,15 @@ export interface ServerRoom {
   guessed: Map<string, GuessedEntry>;
   roundResult: RoundResult | null;
   nearMiss: NearMiss | null;
+  /** Best near miss of the entire game, used by the recap card. */
+  gameNearMiss: NearMiss | null;
   gameResults: GameResult[] | null;
   rematchVotes: Set<string>;
   strokes: Stroke[];
   activeStrokes: Map<string, Stroke>;
   baseImage: string | null;
+  /** Flattened canvases saved before a fill or clear, so they can be undone. */
+  canvasHistory: Array<{ baseImage: string | null; strokes: Stroke[] }>;
   chat: ChatMessage[];
   players: Map<string, ServerPlayer>;
   usedWords: Set<string>;
@@ -223,11 +227,13 @@ export class GameServer {
       guessed: new Map(),
       roundResult: null,
       nearMiss: null,
+      gameNearMiss: null,
       gameResults: null,
       rematchVotes: new Set(),
       strokes: [],
       activeStrokes: new Map(),
       baseImage: null,
+      canvasHistory: [],
       chat: [],
       players: new Map([[player.id, player]]),
       usedWords: new Set(),
@@ -292,7 +298,7 @@ export class GameServer {
     this.system(
       room,
       spectator
-        ? `${player.nickname} joined as a spectator — they can play next game.`
+        ? `${player.nickname} joined as a spectator — they'll join the next round.`
         : `${player.nickname} joined the room.`,
     );
     this.pushState(room);
@@ -476,6 +482,7 @@ export class GameServer {
     room.guessed.clear();
     room.roundResult = null;
     room.nearMiss = null;
+    room.gameNearMiss = null;
     room.gameResults = null;
     room.rematchVotes.clear();
     room.turnOrder = [];
@@ -483,6 +490,7 @@ export class GameServer {
     room.strokes = [];
     room.activeStrokes.clear();
     room.baseImage = null;
+    room.canvasHistory = [];
     for (const player of room.players.values()) {
       if (player.connected) player.isSpectator = false;
     }
@@ -530,12 +538,14 @@ export class GameServer {
     room.guessed.clear();
     room.roundResult = null;
     room.nearMiss = null;
+    room.gameNearMiss = null;
     room.gameResults = null;
     room.rematchVotes.clear();
     room.usedWords.clear();
     room.strokes = [];
     room.activeStrokes.clear();
     room.baseImage = null;
+    room.canvasHistory = [];
     room.artistId = null;
     room.artistDisconnectedAt = null;
     room.phaseEndsAt = null;
@@ -570,6 +580,7 @@ export class GameServer {
     room.strokes = [];
     room.activeStrokes.clear();
     room.baseImage = null;
+    room.canvasHistory = [];
 
     for (const player of room.players.values()) player.roundPoints = 0;
     artist.stats.timesDrawn += 1;
@@ -599,23 +610,52 @@ export class GameServer {
         return;
       }
 
-      const remaining = this.participantIds(room).filter((id) => room.players.get(id)?.connected);
-      if (remaining.length < LIMITS.minPlayers) {
+      const nextPlayers = this.participantIds(room).filter((id) => room.players.get(id)?.connected);
+      const promoted = this.promoteSpectators(room, nextPlayers);
+
+      if (nextPlayers.length < LIMITS.minPlayers) {
         this.endGame(room);
         return;
       }
 
       room.round += 1;
-      room.turnOrder = shuffle(remaining);
+      room.turnOrder = shuffle(nextPlayers);
       room.turnIndex = 0;
       artist = this.nextArtist(room);
       if (!artist) {
         this.endGame(room);
         return;
       }
+
+      if (promoted.length > 0) {
+        this.system(
+          room,
+          `${promoted.map((player) => player.nickname).join(', ')} joined the game for round ${room.round}.`,
+        );
+      }
     }
 
     this.beginTurn(room);
+  }
+
+  /** Spectators queued mid-game get promoted when a fresh round begins. */
+  private promoteSpectators(room: ServerRoom, participantIds: string[]): ServerPlayer[] {
+    const slots = Math.max(0, room.settings.maxPlayers - participantIds.length);
+    if (slots === 0) return [];
+
+    const spectators = Array.from(room.players.values())
+      .filter((player) => player.connected && player.isSpectator)
+      .sort((a, b) => a.joinedAt - b.joinedAt);
+
+    const promoted: ServerPlayer[] = [];
+    for (const spectator of spectators) {
+      if (promoted.length >= slots) break;
+      spectator.isSpectator = false;
+      spectator.roundPoints = 0;
+      participantIds.push(spectator.id);
+      promoted.push(spectator);
+    }
+    return promoted;
   }
 
   private applyWordChoice(room: ServerRoom, word: string): Ack {
@@ -636,6 +676,7 @@ export class GameServer {
     room.strokes = [];
     room.activeStrokes.clear();
     room.baseImage = null;
+    room.canvasHistory = [];
 
     this.touch(room);
     this.system(room, `${artist.nickname} is drawing!`);
@@ -715,6 +756,7 @@ export class GameServer {
     room.nearMiss = null;
     room.gameResults = results;
     room.rematchVotes.clear();
+    room.canvasHistory = [];
 
     if (results.length > 0) {
       this.system(room, `Game over — ${results[0].nickname} wins with ${results[0].score} points!`);
@@ -791,7 +833,8 @@ export class GameServer {
 
         if (isCloseGuess(text, room.word)) {
           this.notify(player, 'So close! You are one letter off.', 'info');
-        }        return;
+        }
+        return;
       }
     }
 
@@ -809,14 +852,26 @@ export class GameServer {
   private recordNearMiss(room: ServerRoom, player: ServerPlayer, text: string): void {
     const distance = nearMissDistance(text, room.word ?? '');
     if (distance === null || distance > 2) return;
-    if (room.nearMiss && room.nearMiss.offBy <= distance) return;
 
-    room.nearMiss = {
-      playerId: player.id,
-      nickname: player.nickname,
-      text: maskProfanity(sanitizeChat(text)),
-      offBy: distance,
-    };
+    const cleanText = maskProfanity(sanitizeChat(text));
+    if (!room.nearMiss || distance < room.nearMiss.offBy) {
+      room.nearMiss = {
+        playerId: player.id,
+        nickname: player.nickname,
+        text: cleanText,
+        offBy: distance,
+      };
+    }
+
+    // Also keep the best one of the game for the recap card.
+    if (!room.gameNearMiss || distance < room.gameNearMiss.offBy) {
+      room.gameNearMiss = {
+        playerId: player.id,
+        nickname: player.nickname,
+        text: cleanText,
+        offBy: distance,
+      };
+    }
   }
 
   private awardGuess(room: ServerRoom, player: ServerPlayer): void {
@@ -946,20 +1001,50 @@ export class GameServer {
 
   clearCanvas(room: ServerRoom, playerId: string): void {
     if (!this.canDraw(room, playerId)) return;
+    this.pushCanvasHistory(room);
     room.strokes = [];
     room.activeStrokes.clear();
     room.baseImage = null;
     this.touch(room);
     this.io.to(room.code).emit('canvas:reset');
+    this.pushState(room);
   }
 
   setSnapshot(room: ServerRoom, playerId: string, dataUrl: string): void {
     if (!this.canDraw(room, playerId)) return;
+    this.pushCanvasHistory(room);
     room.baseImage = dataUrl;
     room.strokes = [];
     room.activeStrokes.clear();
     this.touch(room);
     this.emitToOthers(room, playerId, (socketId) => this.io.to(socketId).emit('canvas:snapshot', { dataUrl }));
+    this.pushState(room);
+  }
+
+  /** Roll back the most recent fill or clear. Only the artist can do this. */
+  undoCanvas(room: ServerRoom, playerId: string): void {
+    if (!this.canDraw(room, playerId)) return;
+    const previous = room.canvasHistory.pop();
+    if (!previous) return;
+
+    room.baseImage = previous.baseImage;
+    room.strokes = previous.strokes;
+    room.activeStrokes.clear();
+    this.touch(room);
+    this.io.to(room.code).emit('canvas:restore', {
+      baseImage: room.baseImage,
+      strokes: room.strokes,
+      active: [],
+    });
+    this.pushState(room);
+  }
+
+  private pushCanvasHistory(room: ServerRoom): void {
+    room.canvasHistory.push({
+      baseImage: room.baseImage,
+      strokes: [...room.strokes],
+    });
+    if (room.canvasHistory.length > 3) room.canvasHistory.shift();
   }
 
   reaction(room: ServerRoom, playerId: string, emoji: string): void {
@@ -1167,6 +1252,7 @@ export class GameServer {
         maskedWord: !isArtist && isDrawing && room.word ? maskWord(room.word, room.hintIndices) : null,
         choices: isArtist && room.phase === 'choosing' ? room.choices : [],
         canDraw: isArtist && isDrawing,
+        canUndoFill: isArtist && isDrawing && room.canvasHistory.length > 0,
         votedRematch: room.rematchVotes.has(viewer.id),
       },
       turnOrder: room.turnOrder,
@@ -1175,6 +1261,7 @@ export class GameServer {
       guessedIds: Array.from(room.guessed.keys()),
       roundResult: room.roundResult,
       gameResults: room.gameResults,
+      gameNearMiss: room.gameNearMiss,
       rematchVotes: room.rematchVotes.size,
       rematchNeeded: this.rematchVoteCount(room),
     };

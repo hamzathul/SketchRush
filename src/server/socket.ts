@@ -190,6 +190,13 @@ export function registerSocketHandlers(socket: GameSocket, game: GameServer): vo
     game.setSnapshot(ctx.room, ctx.player.id, parsed.data.dataUrl);
   });
 
+  socket.on('canvas:undo', () => {
+    const ctx = context();
+    if (!ctx) return;
+    if (!allow(`canvas-undo:${socket.id}`, 30, 10_000)) return;
+    game.undoCanvas(ctx.room, ctx.player.id);
+  });
+
   socket.on('player:cosmetic', (payload) => {
     const ctx = context();
     if (!ctx) return;

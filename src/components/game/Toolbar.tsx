@@ -2,20 +2,24 @@
 
 import {
   Brush,
+  Circle,
   Download,
   Eraser,
   Highlighter,
   Maximize2,
   Minimize2,
+  Minus,
   PaintBucket,
   Pencil,
+  Square,
   Trash2,
   Undo2,
 } from 'lucide-react';
 import type { Tool } from '@/lib/types';
+import type { ShapeTool } from '@/lib/shapes';
 import { cn } from '@/lib/cn';
 
-export type UiTool = Tool | 'fill';
+export type UiTool = Tool | 'fill' | ShapeTool;
 
 const COLORS = [
   '#111827',
@@ -34,12 +38,25 @@ const COLORS = [
   '#ffffff',
 ];
 
-const TOOLS: Array<{ id: UiTool; label: string; shortcut: string; icon: React.ReactNode }> = [
+interface ToolButton {
+  id: UiTool;
+  label: string;
+  shortcut: string;
+  icon: React.ReactNode;
+}
+
+const DRAW_TOOLS: ToolButton[] = [
   { id: 'pen', label: 'Pen', shortcut: 'B', icon: <Pencil size={16} /> },
   { id: 'marker', label: 'Marker', shortcut: 'M', icon: <Brush size={16} /> },
   { id: 'highlighter', label: 'Highlighter', shortcut: 'H', icon: <Highlighter size={16} /> },
   { id: 'eraser', label: 'Eraser', shortcut: 'E', icon: <Eraser size={16} /> },
   { id: 'fill', label: 'Fill', shortcut: 'F', icon: <PaintBucket size={16} /> },
+];
+
+const SHAPE_TOOLS: ToolButton[] = [
+  { id: 'line', label: 'Line', shortcut: 'L', icon: <Minus size={16} /> },
+  { id: 'rect', label: 'Rectangle', shortcut: 'R', icon: <Square size={16} /> },
+  { id: 'ellipse', label: 'Ellipse', shortcut: 'O', icon: <Circle size={16} /> },
 ];
 
 interface ToolbarProps {
@@ -78,32 +95,36 @@ export function Toolbar({
   const opacityDisabled = tool === 'highlighter' || tool === 'eraser' || tool === 'fill';
   const colorDisabled = tool === 'eraser';
 
+  const renderTool = (item: ToolButton) => (
+    <button
+      key={item.id}
+      type="button"
+      onClick={() => onToolChange(item.id)}
+      title={`${item.label} (${item.shortcut})`}
+      aria-label={item.label}
+      aria-pressed={tool === item.id}
+      className={cn(
+        'flex h-8 w-8 items-center justify-center rounded-lg transition lg:h-7 lg:w-7',
+        tool === item.id
+          ? 'bg-white/12 text-lime shadow-inner'
+          : 'text-muted hover:bg-white/6 hover:text-ink',
+      )}
+    >
+      {item.icon}
+    </button>
+  );
+
   return (
     <div className="panel flex shrink-0 flex-wrap items-center gap-1.5 p-1.5 sm:gap-2 sm:p-2">
       <div className="flex items-center gap-0.5 rounded-xl border border-white/6 bg-black/20 p-0.5">
-        {TOOLS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onToolChange(item.id)}
-            title={`${item.label} (${item.shortcut})`}
-            aria-label={item.label}
-            aria-pressed={tool === item.id}
-            className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg transition lg:h-7 lg:w-7',
-              tool === item.id
-                ? 'bg-white/12 text-lime shadow-inner'
-                : 'text-muted hover:bg-white/6 hover:text-ink',
-            )}
-          >
-            {item.icon}
-          </button>
-        ))}
+        {DRAW_TOOLS.map(renderTool)}
+        <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-white/12" />
+        {SHAPE_TOOLS.map(renderTool)}
       </div>
 
       <span className="hidden h-6 w-px bg-white/10 sm:block" />
 
-      <div className="flex items-center gap-0.5">
+      <div className="no-scrollbar -mx-0.5 flex w-full min-w-0 items-center gap-1 overflow-x-auto px-0.5 py-0.5 sm:w-auto sm:flex-1 md:flex-none">
         {COLORS.map((swatch) => (
           <button
             key={swatch}
@@ -113,7 +134,7 @@ export function Toolbar({
             title={swatch}
             aria-label={`Color ${swatch}`}
             className={cn(
-              'h-5 w-5 rounded-full border border-black/20 transition hover:scale-110 disabled:opacity-30',
+              'h-5 w-5 shrink-0 rounded-full border border-black/20 transition hover:scale-110 disabled:opacity-30',
               color === swatch && !colorDisabled ? 'ring-2 ring-white ring-offset-2 ring-offset-surface' : '',
               swatch === '#ffffff' ? 'border-white/30' : '',
             )}
@@ -123,7 +144,7 @@ export function Toolbar({
 
         <label
           className={cn(
-            'relative flex h-5 w-5 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-white/25 bg-[conic-gradient(from_0deg,#ef4444,#f59e0b,#84cc16,#06b6d4,#8b5cf6,#ef4444)] transition hover:scale-110',
+            'relative flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-white/25 bg-[conic-gradient(from_0deg,#ef4444,#f59e0b,#84cc16,#06b6d4,#8b5cf6,#ef4444)] transition hover:scale-110',
             colorDisabled && 'pointer-events-none opacity-30',
           )}
           title="Custom color"
@@ -198,8 +219,8 @@ export function Toolbar({
           className="rounded-lg p-2 text-muted transition hover:bg-white/8 hover:text-ink disabled:opacity-30 lg:p-1.5"
           disabled={!canUndo}
           onClick={onUndo}
-          title="Undo (Ctrl+Z)"
-          aria-label="Undo last stroke"
+          title="Undo last action (Ctrl+Z)"
+          aria-label="Undo last action"
         >
           <Undo2 size={16} />
         </button>
