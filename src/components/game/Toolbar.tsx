@@ -115,7 +115,7 @@ export function Toolbar({
   );
 
   return (
-    <div className="panel flex shrink-0 flex-wrap items-center gap-1.5 p-1.5 sm:gap-2 sm:p-2">
+    <div className="game-toolbar panel flex shrink-0 flex-wrap items-center gap-1.5 p-1.5 sm:gap-2 sm:p-2">
       <div className="flex items-center gap-0.5 rounded-xl border border-white/6 bg-black/20 p-0.5">
         {DRAW_TOOLS.map(renderTool)}
         <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-white/12" />
@@ -124,7 +124,7 @@ export function Toolbar({
 
       <span className="hidden h-6 w-px bg-white/10 sm:block" />
 
-      <div className="no-scrollbar -mx-0.5 flex w-full min-w-0 items-center gap-1 overflow-x-auto px-0.5 py-0.5 sm:w-auto sm:flex-1 md:flex-none">
+      <div className="game-colors no-scrollbar -mx-0.5 flex w-full min-w-0 items-center gap-1 overflow-x-auto px-0.5 py-0.5 sm:w-auto sm:flex-1 md:flex-none">
         {COLORS.map((swatch) => (
           <button
             key={swatch}
@@ -180,7 +180,7 @@ export function Toolbar({
 
         <label
           className={cn(
-            'hidden items-center gap-1.5 text-[11px] text-muted md:flex',
+            'game-opacity hidden items-center gap-1.5 text-[11px] text-muted md:flex',
             opacityDisabled && 'opacity-35',
           )}
           title="Opacity"

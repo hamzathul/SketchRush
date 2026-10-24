@@ -17,7 +17,8 @@ Built with Next.js, Socket.IO, React, TypeScript, Tailwind CSS, Zustand and a ca
 - Room chat, emoji reactions, sound toggle and unread indicators
 - Lobby chat and host controls (difficulty, rounds, draw time, hints, player limit, custom words, room lock, kick, transfer host)
 - Reconnect and refresh recovery — players return to their seat with the canvas intact
-- Desktop and mobile layouts, including a mobile chat sheet
+- Responsive desktop, portrait and landscape layouts with safe-area padding, touch-friendly controls and a mobile chat drawer/side sheet
+- Installable PWA with maskable icons, app shortcuts, an offline fallback and a landing-page install card
 - Rematch and back-to-lobby flows
 
 ## How to play
@@ -31,6 +32,21 @@ Built with Next.js, Socket.IO, React, TypeScript, Tailwind CSS, Zustand and a ca
 7. After the final round, the podium decides who wins. Vote for a rematch or return to the lobby.
 
 One **round** means every player gets one turn to draw. With two players, one round is two turns.
+
+## PWA and mobile
+
+SketchRush is installable from Chrome/Edge (use the install card or the browser menu) and can be added to the iOS Home Screen via **Share → Add to Home Screen**. The manifest defines standalone display, theme colors, maskable icons and shortcuts for creating a room or opening the rules.
+
+The service worker is registered only in production. It precaches the offline page and icons, uses network-first navigation with an `/offline.html` fallback, and cache-first/stale-while-revalidate for static assets. API, Socket.IO and React Server Component requests are never cached, so live games always use the network.
+
+To try the install prompt and offline mode locally, run a production build:
+
+```bash
+npm run build
+npm start
+```
+
+On phones, the game adapts to both orientations. Landscape play uses compact chrome with a single scrollable toolbar and a chat side sheet; portrait play uses a bottom chat drawer. Safe-area insets keep controls clear of notches and home indicators.
 
 ## Local development
 
@@ -73,7 +89,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The Playwright suite creates two real browser players, plays both turns of a one-round game, tests drawing sync, bucket-fill snapshots, chat, reconnect/refresh, final scores and rematch. A separate mobile project checks the landing page, lobby, game canvas and chat drawer. Screenshots are written to `screenshots/`.
+The Playwright suite creates two real browser players, plays both turns of a one-round game, and covers drawing sync, bucket-fill snapshots, chat, reconnect/refresh, final scores, rematch, spectator promotion, recent rooms and PWA assets. The mobile project checks phone portrait and landscape layouts, overflow, the game canvas and the chat drawer/side sheet. Screenshots are written to `sketchrush-screenshots` in the OS temp directory so Next's dev server does not reload mid-test.
 
 ## Architecture
 
@@ -81,9 +97,12 @@ The Playwright suite creates two real browser players, plays both turns of a one
 server.ts                  Custom Node HTTP server + Socket.IO
 src/server/                Authoritative room/game state, validation, timers
 src/lib/socket-events.ts   Typed client/server event contract
-src/components/            Landing, lobby, game, canvas and chat UI
+src/components/            Landing, lobby, game, canvas, chat and PWA UI
 src/lib/                   Zustand store, scoring, words, canvas state
-e2e/                       Playwright multiplayer tests
+src/app/manifest.ts        Web app manifest and icon/shortcut metadata
+public/sw.js               Service worker (offline shell and static caching)
+public/offline.html        Self-contained offline fallback page
+e2e/                       Playwright multiplayer, PWA and mobile tests
 tests/                     Vitest unit tests
 ```
 

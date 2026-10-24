@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#070910" />
+    <title>Offline · SketchRush</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --night: #070910;
+        --surface: #141a29;
+        --line: rgba(255, 255, 255, 0.09);
+        --ink: #eef1f8;
+        --muted: #8b94a9;
+        --lime: #b8f36b;
+        --cyan: #22d3ee;
+        --violet: #8b5cf6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        min-height: 100dvh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(900px 560px at 12% -10%, rgba(139, 92, 246, 0.22), transparent 62%),
+          radial-gradient(700px 460px at 88% 8%, rgba(34, 211, 238, 0.14), transparent 60%),
+          var(--night);
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      .panel {
+        width: min(100%, 420px);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        padding: 28px;
+        background: linear-gradient(180deg, rgba(20, 26, 41, 0.94), rgba(14, 18, 29, 0.96));
+        box-shadow: 0 30px 80px -32px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        text-align: center;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 24px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+      .brand svg {
+        width: 38px;
+        height: 38px;
+      }
+      .brand strong {
+        font-size: 20px;
+      }
+      .brand span {
+        color: var(--lime);
+      }
+      .icon {
+        display: grid;
+        place-items: center;
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 18px;
+        border: 1px solid rgba(34, 211, 238, 0.22);
+        border-radius: 18px;
+        background: rgba(34, 211, 238, 0.09);
+        color: var(--cyan);
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(28px, 8vw, 36px);
+        letter-spacing: -0.04em;
+      }
+      p {
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.65;
+      }
+      .actions {
+        display: grid;
+        gap: 10px;
+        margin-top: 24px;
+      }
+      button,
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 46px;
+        border-radius: 14px;
+        padding: 12px 18px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 650;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      button {
+        border: 0;
+        color: #08110b;
+        background: linear-gradient(115deg, #b8f36b, #5eead4 55%, #22d3ee);
+        box-shadow: 0 12px 34px -14px rgba(184, 243, 107, 0.6);
+      }
+      a {
+        border: 1px solid var(--line);
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .hint {
+        margin-top: 18px;
+        font-size: 11px;
+        color: #68738c;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="panel">
+      <div class="brand" aria-label="SketchRush">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <defs>
+            <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#b8f36b" />
+              <stop offset="55%" stop-color="#22d3ee" />
+              <stop offset="100%" stop-color="#8b5cf6" />
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="#111726" />
+          <path
+            d="M12 42c7-16 13-20 17-12s8 10 12 2 7-10 11-4"
+            fill="none"
+            stroke="url(#g)"
+            stroke-width="5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <circle cx="49" cy="18" r="4" fill="#b8f36b" />
+        </svg>
+        <strong>Sketch<span>Rush</span></strong>
+      </div>
+
+      <div class="icon" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12" />
+          <path d="m7 10 5 5 5-5" />
+          <path d="M5 21h14" />
+        </svg>
+      </div>
+
+      <h1>You&rsquo;re offline.</h1>
+      <p>
+        SketchRush needs a connection to sync drawings, guesses and room state. Reconnect and jump back into the
+        chaos.
+      </p>
+
+      <div class="actions">
+        <button type="button" onclick="window.location.reload()">Try again</button>
+        <a href="/">Open SketchRush</a>
+      </div>
+
+      <p class="hint">Your room will still be there if the server hasn&rsquo;t restarted.</p>
+    </main>
+    <script>
+      window.addEventListener('online', function () {
+        window.location.reload();
+      });
+    </script>
+  </body>
+</html>

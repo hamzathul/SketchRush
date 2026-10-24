@@ -14,7 +14,7 @@ export function SoundToggle({ className = '' }: { className?: string }) {
   return (
     <button
       type="button"
-      className={`btn btn-ghost h-9 w-9 p-0 ${className}`}
+      className={`btn btn-ghost h-10 w-10 p-0 sm:h-9 sm:w-9 ${className}`}
       title={muted ? 'Unmute sounds' : 'Mute sounds'}
       aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}
       onClick={() => {

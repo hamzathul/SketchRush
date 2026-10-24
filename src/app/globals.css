@@ -114,6 +114,7 @@ body {
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
@@ -321,6 +322,48 @@ body {
 /* Keeps fixed mobile action bars above the iPhone home indicator. */
 .safe-bottom {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+/* Phone landscape: the 4:3 canvas is height-bound, so collapse the chrome
+   into a single-row toolbar and keep the drawing area as tall as possible. */
+@media (orientation: landscape) and (max-width: 1023px) and (max-height: 560px) {
+  .game-toolbar {
+    flex-wrap: nowrap;
+    gap: 0.375rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 0.375rem;
+    scrollbar-width: none;
+  }
+
+  .game-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .game-toolbar .game-colors {
+    width: auto;
+    min-width: 7rem;
+    flex: 1 1 0;
+  }
+
+  .game-toolbar .game-opacity {
+    display: none;
+  }
+}
+
+/* Touch targets should never wait for a double-tap zoom. */
+button,
+a,
+[role='button'] {
+  touch-action: manipulation;
+}
+
+/* iOS zooms any focused input below 16px. Keep form controls readable without
+   wrecking the deliberately oversized room-code field. */
+@media (max-width: 640px) {
+  .input:not(.text-xl) {
+    font-size: 16px !important;
+  }
 }
 
 /* Horizontal strips that keep scrolling affordance without a scrollbar. */

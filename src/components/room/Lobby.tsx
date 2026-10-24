@@ -222,7 +222,7 @@ export function Lobby() {
   const customCount = state.settings.customWords.length;
 
   return (
-    <div className="min-h-dvh pb-24 lg:pb-0">
+    <div className="min-h-dvh overflow-x-hidden pb-28 lg:pb-0">
       <header className="sticky top-0 z-30 border-b border-white/6 bg-night/80 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <button type="button" onClick={leave} className="flex items-center gap-2.5" title="Leave room">
@@ -230,16 +230,16 @@ export function Lobby() {
             <Wordmark className="hidden sm:inline" />
           </button>
           <div className="flex items-center gap-2">
-            <RoomCodePill code={state.code} />
+            <RoomCodePill code={state.code} className="hidden sm:inline-flex" />
             <SoundToggle />
             <HowToPlayDialog
               trigger={
-                <button type="button" className="btn btn-ghost h-9 w-9 p-0" aria-label="How to play">
+                <button type="button" className="btn btn-ghost h-10 w-10 p-0 sm:h-9 sm:w-9" aria-label="How to play">
                   <Lightbulb size={16} />
                 </button>
               }
             />
-            <button type="button" onClick={leave} className="btn btn-ghost h-9 w-9 p-0" aria-label="Leave room" title="Leave room">
+            <button type="button" onClick={leave} className="btn btn-ghost h-10 w-10 p-0 sm:h-9 sm:w-9" aria-label="Leave room" title="Leave room">
               <LogOut size={16} />
             </button>
           </div>
@@ -373,19 +373,21 @@ export function Lobby() {
                       </div>
 
                       {isHost && !isYou ? (
-                        <div className="flex flex-col gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                        <div className="flex flex-col gap-1 opacity-100 transition focus-within:opacity-100 lg:opacity-0 lg:group-hover:opacity-100">
                           <button
                             type="button"
-                            className="rounded-md p-1 text-muted transition hover:bg-white/10 hover:text-ink"
+                            className="rounded-md p-1.5 text-muted transition hover:bg-white/10 hover:text-ink lg:p-1"
                             title={`Make ${player.nickname} host`}
+                            aria-label={`Make ${player.nickname} host`}
                             onClick={() => makeHost(player.id, player.nickname)}
                           >
                             <UserCog size={14} />
                           </button>
                           <button
                             type="button"
-                            className="rounded-md p-1 text-muted transition hover:bg-danger/15 hover:text-danger"
+                            className="rounded-md p-1.5 text-muted transition hover:bg-danger/15 hover:text-danger lg:p-1"
                             title={`Remove ${player.nickname}`}
+                            aria-label={`Remove ${player.nickname}`}
                             onClick={() => kick(player.id, player.nickname)}
                           >
                             <UserMinus size={14} />
@@ -479,7 +481,7 @@ export function Lobby() {
                 <SettingRow label="Difficulty">
                   {isHost ? (
                     <select
-                      className="input h-9 w-32 py-0 text-sm"
+                      className="input h-10 w-32 py-0 text-sm sm:h-9"
                       value={state.settings.difficulty}
                       onChange={(event) =>
                         updateSettings({ difficulty: event.target.value as RoomSettings['difficulty'] })
@@ -497,7 +499,7 @@ export function Lobby() {
                 <SettingRow label="Rounds">
                   {isHost ? (
                     <select
-                      className="input h-9 w-24 py-0 text-sm"
+                      className="input h-10 w-24 py-0 text-sm sm:h-9"
                       value={state.settings.rounds}
                       onChange={(event) => updateSettings({ rounds: Number(event.target.value) })}
                     >
@@ -515,7 +517,7 @@ export function Lobby() {
                 <SettingRow label="Draw time">
                   {isHost ? (
                     <select
-                      className="input h-9 w-24 py-0 text-sm"
+                      className="input h-10 w-24 py-0 text-sm sm:h-9"
                       value={state.settings.drawTime}
                       onChange={(event) => updateSettings({ drawTime: Number(event.target.value) })}
                     >
@@ -533,7 +535,7 @@ export function Lobby() {
                 <SettingRow label="Max players">
                   {isHost ? (
                     <select
-                      className="input h-9 w-24 py-0 text-sm"
+                      className="input h-10 w-24 py-0 text-sm sm:h-9"
                       value={state.settings.maxPlayers}
                       onChange={(event) => updateSettings({ maxPlayers: Number(event.target.value) })}
                     >
@@ -551,7 +553,7 @@ export function Lobby() {
                 <SettingRow label="Hints">
                   {isHost ? (
                     <select
-                      className="input h-9 w-20 py-0 text-sm"
+                      className="input h-10 w-20 py-0 text-sm sm:h-9"
                       value={state.settings.hints}
                       onChange={(event) => updateSettings({ hints: Number(event.target.value) })}
                     >
@@ -747,7 +749,7 @@ export function Lobby() {
                 Room {state.code} · {connectedPlayers.length} ready
               </p>
             </div>
-            <button type="button" className="btn btn-ghost h-9 px-3 text-xs" onClick={copyLink}>
+            <button type="button" className="btn btn-ghost h-10 px-3 text-xs sm:h-9" onClick={copyLink}>
               <Link2 size={14} /> Invite
             </button>
           </div>

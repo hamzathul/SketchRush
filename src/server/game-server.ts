@@ -375,7 +375,11 @@ export class GameServer {
     this.system(room, `${player.nickname} disconnected.`);
     this.pushState(room);
 
-    if (room.phase === 'drawing' && room.guessed.size >= this.eligibleGuesserIds(room).length) {
+    // Don't end the turn just because the last remaining guesser refreshed or
+    // briefly dropped. `eligibleGuesserIds` only counts connected players, so a
+    // 0 >= 0 comparison would otherwise start the end-of-round grace timer.
+    const eligible = this.eligibleGuesserIds(room);
+    if (room.phase === 'drawing' && eligible.length > 0 && room.guessed.size >= eligible.length) {
       room.phaseEndsAt = Date.now() + TIMING.allGuessedGraceMs;
     }
   }
@@ -924,7 +928,7 @@ export class GameServer {
     }
 
     const eligible = this.eligibleGuesserIds(room);
-    if (room.guessed.size >= eligible.length) {
+    if (eligible.length > 0 && room.guessed.size >= eligible.length) {
       room.phaseEndsAt = Date.now() + TIMING.allGuessedGraceMs;
     }
 
@@ -1360,7 +1364,13 @@ export class GameServer {
         }
       }
 
-      if (room.guessed.size >= this.eligibleGuesserIds(room).length && room.phaseEndsAt && now >= room.phaseEndsAt) {
+      const eligible = this.eligibleGuesserIds(room);
+      if (
+        eligible.length > 0 &&
+        room.guessed.size >= eligible.length &&
+        room.phaseEndsAt &&
+        now >= room.phaseEndsAt
+      ) {
         this.endRound(room);
       }
       return;

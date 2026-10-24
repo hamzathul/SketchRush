@@ -94,7 +94,7 @@ export function ChatPanel({
         ) : null}
       </div>
 
-      <div ref={listRef} data-testid="chat-list" className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3" aria-live="polite">
+      <div ref={listRef} data-testid="chat-list" className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-3" aria-live="polite">
         {chat.length === 0 ? (
           <p className="mt-6 text-center text-xs leading-relaxed text-muted">
             No messages yet.
@@ -164,7 +164,7 @@ export function ChatPanel({
       <div className="shrink-0 border-t border-white/6 px-2.5 py-2">
         <div
           data-testid="quick-chat-row"
-          className="fade-x no-scrollbar mb-1.5 flex flex-nowrap items-center gap-1 overflow-x-auto"
+          className="fade-x no-scrollbar mb-1.5 flex flex-nowrap items-center gap-1 overflow-x-auto overscroll-x-contain"
         >
           {quickLines.map((line) => (
             <button

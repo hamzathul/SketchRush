@@ -1,4 +1,19 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { devices, expect, test, type Page } from '@playwright/test';
+
+// Keep screenshots out of the project. Next's dev server watches project files
+// and a screenshot written mid-test would trigger a Fast Refresh reload.
+const SCREENSHOT_DIR = path.join(os.tmpdir(), 'sketchrush-screenshots');
+fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+
+async function shot(page: Page, options: { path: string; fullPage?: boolean }): Promise<void> {
+  await page.screenshot({
+    ...options,
+    path: path.join(SCREENSHOT_DIR, path.basename(options.path)),
+  });
+}
 
 async function waitForWordChooser(pages: Page[]): Promise<Page> {
   const deadline = Date.now() + 25_000;
@@ -43,25 +58,76 @@ async function settleLanding(page: Page): Promise<void> {
   await page.waitForTimeout(400);
 }
 
+async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
+    .toBeLessThanOrEqual(1);
+}
+
 test.describe('SketchRush game flow', () => {
   test.skip(({ isMobile }) => isMobile, 'The full multiplayer flow runs on the desktop project.');
 
+  test('serves installable PWA assets and metadata', async ({ page }) => {
+    const manifestResponse = await page.request.get('/manifest.webmanifest');
+    expect(manifestResponse.status()).toBe(200);
+
+    const app = (await manifestResponse.json()) as {
+      name: string;
+      short_name: string;
+      start_url: string;
+      display: string;
+      theme_color: string;
+      icons: Array<{ src: string; sizes: string; type: string; purpose?: string }>;
+    };
+
+    expect(app.name).toContain('SketchRush');
+    expect(app.short_name).toBe('SketchRush');
+    expect(app.start_url).toBe('/');
+    expect(app.display).toBe('standalone');
+    expect(app.theme_color).toBe('#070910');
+    expect(app.icons.some((icon) => icon.sizes === '192x192' && icon.purpose === 'any')).toBe(true);
+    expect(app.icons.some((icon) => icon.sizes === '512x512' && icon.purpose === 'maskable')).toBe(true);
+
+    for (const icon of app.icons) {
+      const response = await page.request.get(icon.src);
+      expect(response.status(), icon.src).toBe(200);
+      expect(response.headers()['content-type'], icon.src).toContain('image/png');
+    }
+
+    const worker = await page.request.get('/sw.js');
+    expect(worker.status()).toBe(200);
+    expect(worker.headers()['service-worker-allowed']).toBe('/');
+    expect(await worker.text()).toContain("'/offline.html'");
+
+    const offline = await page.request.get('/offline.html');
+    expect(offline.status()).toBe(200);
+    expect(await offline.text()).toContain("You&rsquo;re offline");
+
+    await page.goto('/');
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', /manifest\.webmanifest/);
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#070910');
+    await expect(page.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
+  });
+
   test('create, join, draw, guess, finish and rematch', async ({ page, browser }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(240_000);
 
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Draw badly');
 
     await page.getByLabel('Your nickname').fill('Hosty');
 
+    // Wait for hydration before clicking a button whose handler is React-only.
+    const createButton = page.locator('form button[type="submit"]');
+    await expect(createButton).toBeEnabled();
+
     await page.getByRole('button', { name: 'Change avatar' }).click();
     await expect(page.getByRole('heading', { name: 'Pick your avatar' })).toBeVisible();
-    await page.screenshot({ path: 'screenshots/avatar-picker.png', fullPage: true });
+    await shot(page, { path: 'screenshots/avatar-picker.png', fullPage: true });
     await page.getByRole('button', { name: 'Use avatar 🦊' }).click();
     await page.getByRole('button', { name: 'Done' }).click();
     await expect(page.getByRole('heading', { name: 'Pick your avatar' })).not.toBeVisible();
 
-    const createButton = page.locator('form button[type="submit"]');
     await expect(createButton).toBeEnabled();
     await createButton.click();
     await expect(page).toHaveURL(/\/room\/[A-Z0-9]{4,8}$/, { timeout: 20_000 });
@@ -115,7 +181,7 @@ test.describe('SketchRush game flow', () => {
 
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.waitForTimeout(150);
-      await page.screenshot({ path: 'screenshots/lobby-desktop.png', fullPage: true });
+      await shot(page, { path: 'screenshots/lobby-desktop.png', fullPage: true });
 
       // Lobby reactions are live: they float over the room for everyone.
       await guest.getByRole('button', { name: 'React with 🔥' }).first().click();
@@ -127,11 +193,12 @@ test.describe('SketchRush game flow', () => {
       await guest.getByTestId('quick-chat-row').getByRole('button', { name: 'gg 🎉' }).click();
       await expect(page.getByTestId('chat-list').getByText('gg 🎉')).toBeVisible({ timeout: 10_000 });
 
-      // Fast game for CI: one round, 30 seconds per turn.
+      // Fast game for CI: one round, 120 seconds per turn. The reconnect and
+      // undo checks happen mid-turn, so leave plenty of headroom for slow CI.
       const selects = page.locator('select');
       await selects.nth(1).selectOption('1');
-      await selects.nth(2).selectOption('30');
-      await expect(guest.getByText('30s').first()).toBeVisible({ timeout: 15_000 });
+      await selects.nth(2).selectOption('120');
+      await expect(guest.getByText('120s').first()).toBeVisible({ timeout: 15_000 });
 
       await page
         .locator('button:visible')
@@ -172,7 +239,7 @@ test.describe('SketchRush game flow', () => {
           await expect
             .poll(async () => (await artist.locator('canvas').boundingBox())?.width ?? 0, { timeout: 5_000 })
             .toBeGreaterThan(normalCanvas?.width ?? 0);
-          await artist.screenshot({ path: 'screenshots/game-artist-focus.png', fullPage: true });
+          await shot(artist, { path: 'screenshots/game-artist-focus.png', fullPage: true });
           await artist.keyboard.press('Escape');
           await expect(artist.getByRole('button', { name: 'Focus on the canvas' })).toBeVisible();
 
@@ -186,7 +253,7 @@ test.describe('SketchRush game flow', () => {
               .filter({ hasText: '❤️' })
               .first(),
           ).toBeVisible();
-          await artist.screenshot({ path: 'screenshots/reactions.png', fullPage: true });
+          await shot(artist, { path: 'screenshots/reactions.png', fullPage: true });
 
           const before = await guesser
             .locator('canvas')
@@ -215,8 +282,8 @@ test.describe('SketchRush game flow', () => {
             )
             .not.toBe(before);
 
-          await artist.screenshot({ path: 'screenshots/game-artist.png', fullPage: true });
-          await guesser.screenshot({ path: 'screenshots/game-guesser.png', fullPage: true });
+          await shot(artist, { path: 'screenshots/game-artist.png', fullPage: true });
+          await shot(guesser, { path: 'screenshots/game-guesser.png', fullPage: true });
 
           // Bucket fill is sent as a PNG snapshot rather than vector strokes.
           const beforeFill = await guesser
@@ -242,7 +309,7 @@ test.describe('SketchRush game flow', () => {
 
           await artist.getByRole('button', { name: 'Clear canvas' }).click();
           await expect(artist.getByRole('heading', { name: 'Clear the canvas?' })).toBeVisible();
-          await artist.screenshot({ path: 'screenshots/clear-dialog.png', fullPage: true });
+          await shot(artist, { path: 'screenshots/clear-dialog.png', fullPage: true });
           await artist.getByRole('button', { name: 'Cancel' }).click();
           await expect(artist.getByRole('heading', { name: 'Clear the canvas?' })).not.toBeVisible();
 
@@ -261,7 +328,7 @@ test.describe('SketchRush game flow', () => {
           await expect
             .poll(async () => canvasPixel(guesser, 0.85, 0.85), { timeout: 10_000 })
             .toBe(pixelBeforeFill);
-          await artist.screenshot({ path: 'screenshots/fill-undo.png', fullPage: true });
+          await shot(artist, { path: 'screenshots/fill-undo.png', fullPage: true });
         } else {
           // The recap uses the last turn, so leave a real drawing there too.
           const box = await artist.getByLabel('Drawing canvas').boundingBox();
@@ -309,8 +376,8 @@ test.describe('SketchRush game flow', () => {
           await expect(artist.getByTestId('round-replay')).toBeVisible();
           await expect(artist.getByTestId('round-replay').getByRole('img')).toBeVisible();
           await artist.waitForTimeout(1_600);
-          await artist.screenshot({ path: 'screenshots/round-end.png', fullPage: true });
-          await page.screenshot({ path: 'screenshots/round-end-host.png', fullPage: true });
+          await shot(artist, { path: 'screenshots/round-end.png', fullPage: true });
+          await shot(page, { path: 'screenshots/round-end-host.png', fullPage: true });
         }
       }
 
@@ -318,7 +385,7 @@ test.describe('SketchRush game flow', () => {
       await expect(guest.getByText('Final scores')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(/wins!/)).toBeVisible();
       await expect(page.getByText(/Winner charms:/)).toBeVisible();
-      await page.screenshot({ path: 'screenshots/game-end.png', fullPage: true });
+      await shot(page, { path: 'screenshots/game-end.png', fullPage: true });
 
       // The recap card is painted locally from the final replay frame.
       await page.getByRole('button', { name: /Recap card/ }).click();
@@ -343,7 +410,7 @@ test.describe('SketchRush game flow', () => {
         return false;
       });
       expect(recapHasInk).toBe(true);
-      await page.screenshot({ path: 'screenshots/recap-card.png', fullPage: true });
+      await shot(page, { path: 'screenshots/recap-card.png', fullPage: true });
       await page.getByRole('button', { name: 'Close dialog' }).click();
       await expect(page.getByRole('heading', { name: 'Your recap' })).not.toBeVisible();
 
@@ -356,7 +423,7 @@ test.describe('SketchRush game flow', () => {
       const nextArtist = await waitForWordChooser([page, guest]);
       await expect(nextArtist.getByRole('dialog').getByText('Pick your word')).toBeVisible();
       await page.waitForTimeout(500);
-      await page.screenshot({ path: 'screenshots/rematch-chooser.png', fullPage: true });
+      await shot(page, { path: 'screenshots/rematch-chooser.png', fullPage: true });
     } finally {
       await guestContext.close();
     }
@@ -435,7 +502,7 @@ test.describe('SketchRush game flow', () => {
       await expect(watcher.getByText(/you'll join the next round/i)).not.toBeVisible({ timeout: 15_000 });
       const nextArtist = await waitForWordChooser([page, guest, watcher]);
       await expect(nextArtist.getByRole('dialog').getByText('Pick your word')).toBeVisible();
-      await watcher.screenshot({ path: 'screenshots/spectator-promoted.png', fullPage: true });
+      await shot(watcher, { path: 'screenshots/spectator-promoted.png', fullPage: true });
     } finally {
       await guestContext.close();
       await watcherContext.close();
@@ -455,7 +522,7 @@ test.describe('SketchRush game flow', () => {
     await expect(page.getByText('Played as Recent')).toBeVisible();
     await expect(page.getByText('ABC123', { exact: true })).toBeVisible();
     await settleLanding(page);
-    await page.screenshot({ path: 'screenshots/landing-recent.png', fullPage: true });
+    await shot(page, { path: 'screenshots/landing-recent.png', fullPage: true });
 
     await page.getByRole('button', { name: /Played as Recent/ }).click();
     await expect(page).toHaveURL(/\/room\/ABC123$/);
@@ -470,12 +537,13 @@ test.describe('SketchRush mobile', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Draw badly');
     await expect(page.getByLabel('Your nickname')).toBeVisible();
     await settleLanding(page);
-    await page.screenshot({ path: 'screenshots/landing-mobile.png', fullPage: true });
+    await shot(page, { path: 'screenshots/landing-mobile.png', fullPage: true });
+    await expectNoHorizontalOverflow(page);
 
     await page.getByText('From zero to chaos in 30 seconds.').scrollIntoViewIfNeeded();
     await expect(page.getByRole('heading', { name: 'Create a room' })).toBeVisible();
     await page.waitForTimeout(700);
-    await page.screenshot({ path: 'screenshots/landing-mobile-how.png', fullPage: true });
+    await shot(page, { path: 'screenshots/landing-mobile-how.png', fullPage: true });
 
     await page.getByLabel('Your nickname').fill('Mobile');
     const createButton = page.locator('form button[type="submit"]');
@@ -483,7 +551,10 @@ test.describe('SketchRush mobile', () => {
     await createButton.click();
     await expect(page).toHaveURL(/\/room\/[A-Z0-9]{4,8}$/, { timeout: 20_000 });
     await expect(page.getByText('Game settings')).toBeVisible({ timeout: 20_000 });
-    await page.screenshot({ path: 'screenshots/lobby-mobile.png', fullPage: true });
+    await expectNoHorizontalOverflow(page);
+    const firstSelect = await page.locator('select').first().boundingBox();
+    expect(firstSelect?.height ?? 0).toBeGreaterThanOrEqual(40);
+    await shot(page, { path: 'screenshots/lobby-mobile.png', fullPage: true });
   });
 
   test('game canvas and chat drawer fit a phone', async ({ page, browser }) => {
@@ -527,14 +598,16 @@ test.describe('SketchRush mobile', () => {
 
       await expect(artist.locator('canvas')).toBeVisible({ timeout: 15_000 });
       await expect(artist.getByRole('button', { name: 'Pen', exact: true })).toBeVisible();
-      await artist.screenshot({ path: 'screenshots/game-artist-mobile.png', fullPage: true });
+      await expectNoHorizontalOverflow(page);
+      await shot(artist, { path: 'screenshots/game-artist-mobile.png', fullPage: true });
 
       const chatButton = guesser.getByRole('button', { name: /Chat & guesses/ });
       await chatButton.click();
       const drawer = guesser.getByTestId('chat-drawer');
       const guessInput = drawer.getByPlaceholder(/Type your guess/);
       await expect(guessInput).toBeVisible({ timeout: 10_000 });
-      await guesser.screenshot({ path: 'screenshots/game-guesser-mobile.png', fullPage: true });
+      await expectNoHorizontalOverflow(guesser);
+      await shot(guesser, { path: 'screenshots/game-guesser-mobile.png', fullPage: true });
 
       const before = await drawer.getByText(/guessed the word!/).count();
       await guessInput.fill(word);
@@ -545,7 +618,64 @@ test.describe('SketchRush mobile', () => {
 
       await guesser.keyboard.press('Escape');
       await expect(guesser.getByText('Turn complete. The word was')).toBeVisible({ timeout: 20_000 });
-      await guesser.screenshot({ path: 'screenshots/round-end-mobile.png', fullPage: true });
+      await shot(guesser, { path: 'screenshots/round-end-mobile.png', fullPage: true });
+    } finally {
+      await guestContext.close();
+    }
+  });
+
+  test('landscape game keeps a usable canvas and side chat', async ({ page, browser }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 915, height: 412 });
+    await page.goto('/');
+    await page.getByLabel('Your nickname').fill('LandHost');
+    const createButton = page.locator('form button[type="submit"]');
+    await expect(createButton).toBeEnabled();
+    await createButton.click();
+    await expect(page).toHaveURL(/\/room\/[A-Z0-9]{4,8}$/, { timeout: 20_000 });
+    const code = new URL(page.url()).pathname.split('/').pop() ?? '';
+    const origin = new URL(page.url()).origin;
+
+    const guestContext = await browser.newContext({
+      ...devices['Pixel 7'],
+      viewport: { width: 915, height: 412 },
+    });
+    const guest = await guestContext.newPage();
+    try {
+      await guest.goto(`${origin}/room/${code}`);
+      await guest.getByLabel('Your nickname').fill('LandGuest');
+      const join = guest.getByRole('button', { name: /Join room/ });
+      await expect(join).toBeEnabled({ timeout: 15_000 });
+      await join.click();
+      await expect(page.getByText('LandGuest', { exact: true })).toBeVisible({ timeout: 20_000 });
+      await expectNoHorizontalOverflow(page);
+
+      await page
+        .locator('button:visible')
+        .filter({ hasText: 'Start game' })
+        .first()
+        .click();
+
+      const artist = await waitForWordChooser([page, guest]);
+      const chooser = artist.getByRole('dialog');
+      await chooser.getByRole('button').first().click();
+      await expect(artist.getByRole('button', { name: 'Pen', exact: true })).toBeVisible({
+        timeout: 15_000,
+      });
+
+      // The portrait chrome collapses so the 4:3 surface stays drawable.
+      const canvas = await artist.locator('canvas').boundingBox();
+      expect(canvas?.width ?? 0).toBeGreaterThan(280);
+      expect(canvas?.height ?? 0).toBeGreaterThan(210);
+      await expectNoHorizontalOverflow(artist);
+      await shot(artist, { path: 'screenshots/game-artist-landscape.png', fullPage: true });
+
+      const guesser = artist === page ? guest : page;
+      await expect(guesser.getByRole('button', { name: 'Open chat' })).toBeVisible();
+      await guesser.getByRole('button', { name: 'Open chat' }).click();
+      await expect(guesser.getByTestId('chat-drawer')).toBeVisible();
+      await expectNoHorizontalOverflow(guesser);
+      await shot(guesser, { path: 'screenshots/game-chat-landscape.png', fullPage: true });
     } finally {
       await guestContext.close();
     }

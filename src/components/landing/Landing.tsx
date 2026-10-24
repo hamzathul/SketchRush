@@ -24,6 +24,7 @@ import { randomAvatarSeed } from '@/components/Avatar';
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { BrandMark, Wordmark } from '@/components/BrandMark';
 import { HowToPlayDialog } from '@/components/HowToPlayDialog';
+import { PwaInstall } from '@/components/PwaInstall';
 import { getSocket } from '@/lib/socket';
 import { getAvatarSeed, getNickname, getWins, saveAvatarSeed, saveNickname, saveSession } from '@/lib/session';
 import { cosmeticForWins } from '@/lib/game-config';
@@ -288,7 +289,7 @@ export function Landing() {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/4 px-3 py-1.5 text-xs font-medium text-muted"
+              className="mb-5 inline-flex max-w-full flex-wrap items-center justify-center gap-2 rounded-full border border-white/10 bg-white/4 px-3 py-1.5 text-center text-xs font-medium text-muted"
             >
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-lime opacity-60" />
@@ -530,14 +531,14 @@ export function Landing() {
                 ) : null}
 
                 <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
-                  No account. No download. Just a link and questionable art skills.
+                  No account. No app store. Just a link and questionable art skills.
                 </p>
               </div>
             </div>
           </motion.div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-5 pb-20 sm:px-8">
+        <section id="how-it-works" className="mx-auto w-full max-w-7xl px-5 pb-20 sm:px-8">
           <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-2">How it works</p>
@@ -603,6 +604,8 @@ export function Landing() {
           </div>
         </section>
 
+        <PwaInstall />
+
         <section className="mx-auto w-full max-w-4xl px-5 pb-24 text-center sm:px-8">
           <h2 className="font-display text-balance text-3xl font-bold tracking-tight sm:text-5xl">
             Your friends are already drawing without you.
@@ -633,7 +636,7 @@ export function Landing() {
               <Wordmark className="text-sm" /> — {BRAND.tagline}
             </span>
           </div>
-          <p>No accounts. No downloads. Just drawing.</p>
+          <p>No accounts. No app store. Just drawing.</p>
         </div>
       </footer>
     </div>

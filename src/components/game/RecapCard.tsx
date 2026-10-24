@@ -247,12 +247,9 @@ async function buildRecap(data: RecapData): Promise<string> {
   context.fillRect(artX, artY, artWidth, artHeight);
   if (data.frame) {
     try {
-      console.log('[recap] loading frame', data.frame.length, data.frame.slice(0, 32));
       const image = await loadImage(data.frame);
-      console.log('[recap] frame loaded', image.width, image.height);
       drawImageCover(context, image, artX, artY, artWidth, artHeight);
-    } catch (error) {
-      console.log('[recap] frame failed', error);
+    } catch {
       // Keep the paper placeholder if the frame cannot be decoded.
     }
   }

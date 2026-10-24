@@ -70,14 +70,14 @@ export function Game() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
       {onFire ? <div aria-hidden="true" className="streak-glow pointer-events-none fixed inset-0 z-20" /> : null}
-      <TopBar />
+      <TopBar onOpenChat={() => setChatOpen(true)} unread={unread} />
       <PlayerRail variant="mobile" />
 
       <div className="flex min-h-0 flex-1">
         <PlayerRail className="lg:w-[228px] xl:w-[252px]" />
 
-        <main className="flex min-w-0 flex-1 flex-col gap-2 p-2 sm:p-2.5">
-          <div className="lg:hidden">
+        <main className="flex min-w-0 flex-1 flex-col gap-2 p-2 sm:p-2.5 max-lg:landscape:gap-1 max-lg:landscape:p-1">
+          <div className="lg:hidden max-lg:landscape:hidden">
             <WordBanner />
           </div>
           <CanvasStage />
@@ -88,7 +88,7 @@ export function Game() {
         </aside>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 border-t border-white/8 bg-night/85 px-2 py-2 backdrop-blur-xl lg:hidden">
+      <div className="safe-bottom flex shrink-0 items-center gap-2 border-t border-white/8 bg-night/85 px-2 py-2 backdrop-blur-xl lg:hidden max-lg:landscape:hidden">
         <button
           type="button"
           className="btn btn-ghost h-10 flex-1 justify-between"
@@ -109,7 +109,7 @@ export function Game() {
           )}
         </button>
         <ReactionRow
-          className="fade-x no-scrollbar min-w-0 flex-1 flex-nowrap justify-start overflow-x-auto"
+          className="fade-x no-scrollbar min-w-0 flex-1 flex-nowrap justify-start overflow-x-auto overscroll-x-contain"
           size="md"
         />
       </div>
@@ -122,7 +122,7 @@ export function Game() {
             onClick={() => setChatOpen(false)}
             aria-label="Close chat"
           />
-          <div className="absolute inset-x-0 bottom-0 flex h-[74dvh] flex-col rounded-t-3xl border-t border-white/10 bg-night p-2 shadow-2xl animate-rise">
+          <div className="safe-bottom absolute inset-x-0 bottom-0 flex h-[82dvh] flex-col rounded-t-3xl border-t border-white/10 bg-night p-2 shadow-2xl animate-rise landscape:inset-y-0 landscape:left-auto landscape:right-0 landscape:h-full landscape:w-[min(28rem,75vw)] landscape:rounded-none landscape:border-l landscape:border-t-0">
             <ChatPanel className="h-full" onClose={() => setChatOpen(false)} />
           </div>
         </div>

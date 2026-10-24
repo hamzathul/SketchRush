@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Crown, Eye, Lightbulb, LogOut, Wifi } from 'lucide-react';
+import { Crown, Eye, Lightbulb, LogOut, MessageCircle, Wifi } from 'lucide-react';
 import { BrandMark, Wordmark } from '@/components/BrandMark';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { HowToPlayDialog } from '@/components/HowToPlayDialog';
@@ -15,7 +15,7 @@ import { clearSession } from '@/lib/session';
 import { TIMING } from '@/lib/game-config';
 import { cn } from '@/lib/cn';
 
-export function TopBar() {
+export function TopBar({ onOpenChat, unread = 0 }: { onOpenChat?: () => void; unread?: number }) {
   const router = useRouter();
   const state = useGameStore((store) => store.state);
   const ping = useGameStore((store) => store.ping);
@@ -52,17 +52,31 @@ export function TopBar() {
 
   return (
     <>
-    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/6 bg-night/70 px-2.5 py-2 backdrop-blur-xl sm:px-4">
+    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/6 bg-night/70 px-2.5 py-2 backdrop-blur-xl sm:px-4 max-lg:landscape:py-1">
       <div className="flex min-w-0 items-center gap-2.5">
         <button type="button" onClick={() => setLeaveOpen(true)} className="flex items-center gap-2.5" title="Leave room">
           <BrandMark size={30} />
-          <Wordmark className="hidden md:inline" />
+          <Wordmark className="hidden md:inline max-lg:landscape:hidden" />
         </button>
 
         <span className="hidden h-6 w-px bg-white/10 sm:block" />
 
         <span className="chip hidden border-white/8 bg-white/4 sm:inline-flex" title={`Round ${Math.max(1, state.round)} of ${state.totalRounds}`}>
           {state.phase === 'game_end' ? 'Final' : `Turn ${turnNumber}/${totalTurns}`}
+        </span>
+
+        <span className="hidden min-w-0 items-center gap-1.5 max-lg:landscape:flex">
+          {state.phase === 'drawing' ? (
+            state.you.isArtist ? (
+              <span className="max-w-[28vw] truncate font-display text-sm font-bold text-lime">{state.you.word}</span>
+            ) : (
+              <span className="max-w-[32vw] truncate font-display text-sm font-bold tracking-[0.16em]">{maskedWord}</span>
+            )
+          ) : state.phase === 'choosing' ? (
+            <span className="max-w-[32vw] truncate text-[11px] text-muted">
+              {artist?.nickname ?? 'Someone'} is choosing…
+            </span>
+          ) : null}
         </span>
 
         {state.phase !== 'game_end' ? (
@@ -113,10 +127,10 @@ export function TopBar() {
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         {showTimer ? <TimerRing endsAt={state.phaseEndsAt} totalMs={totalMs} /> : null}
 
-        <RoomCodePill code={state.code} className="hidden sm:inline-flex" />
+        <RoomCodePill code={state.code} className="hidden sm:inline-flex max-[700px]:landscape:hidden" />
 
         <span
-          className="hidden items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2 py-1 text-[10px] text-muted md:flex"
+          className="hidden items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2 py-1 text-[10px] text-muted md:flex max-lg:landscape:hidden"
           title={ping !== null ? `${ping}ms round trip` : 'Connection quality'}
         >
           <Wifi size={11} className={pingIcon} />
@@ -126,9 +140,25 @@ export function TopBar() {
 
         <SoundToggle />
 
+        {onOpenChat ? (
+          <button
+            type="button"
+            onClick={onOpenChat}
+            className="btn btn-ghost relative hidden h-10 w-10 p-0 max-lg:landscape:flex"
+            aria-label="Open chat"
+          >
+            <MessageCircle size={16} />
+            {unread > 0 ? (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-lime px-1 text-[10px] font-bold text-black">
+                {unread > 99 ? '99+' : unread}
+              </span>
+            ) : null}
+          </button>
+        ) : null}
+
         <HowToPlayDialog
           trigger={
-            <button type="button" className="btn btn-ghost h-9 w-9 p-0" aria-label="How to play">
+            <button type="button" className="btn btn-ghost h-10 w-10 p-0 sm:h-9 sm:w-9" aria-label="How to play">
               <Lightbulb size={16} />
             </button>
           }
@@ -136,7 +166,7 @@ export function TopBar() {
 
         <button
           type="button"
-          className="btn btn-ghost h-9 w-9 p-0"
+          className="btn btn-ghost h-10 w-10 p-0 sm:h-9 sm:w-9"
           title="Leave room"
           aria-label="Leave room"
           onClick={() => setLeaveOpen(true)}

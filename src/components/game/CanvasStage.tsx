@@ -371,7 +371,7 @@ export function CanvasStage() {
   return (
     <div
       className={cn(
-        'flex min-h-0 flex-1 flex-col gap-2',
+        'flex min-h-0 flex-1 flex-col gap-2 max-lg:landscape:gap-1',
         focused && 'fixed inset-0 z-20 bg-night/97 p-2 backdrop-blur-xl sm:p-3',
       )}
     >

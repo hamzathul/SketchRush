@@ -14,7 +14,7 @@ export function PlayerRail({ variant = 'desktop', className }: { variant?: 'desk
 
   if (variant === 'mobile') {
     return (
-      <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-white/6 px-2 py-2 no-scrollbar lg:hidden">
+      <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-white/6 px-2 py-2 no-scrollbar lg:hidden max-lg:landscape:gap-1 max-lg:landscape:py-1">
         {state.players.map((player) => (
           <div
             key={player.id}
